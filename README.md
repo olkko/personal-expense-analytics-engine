@@ -16,5 +16,3 @@ The main technologies we plan to use are Python, Streamlit, pandas, SQLite, Plot
 - **Session 6 – Web application and AI features:** Develop the browser interface, implement interactive visualizations, and integrate AI-generated spending insights and personalized savings recommendations based on calculated financial statistics.
 - **Session 7 – Testing and finalization:** Add automated tests, improve error handling and logging, validate the AI-generated insights, finalize the documentation, and demonstrate the completed application.
 
-Best regards,
-Oleksii Korduba
