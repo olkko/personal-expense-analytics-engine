@@ -16,3 +16,31 @@ The main technologies we plan to use are Python, Streamlit, pandas, SQLite, Plot
 - **Session 6 – Web application and AI features:** Develop the browser interface, implement interactive visualizations, and integrate AI-generated spending insights and personalized savings recommendations based on calculated financial statistics.
 - **Session 7 – Testing and finalization:** Add automated tests, improve error handling and logging, validate the AI-generated insights, finalize the documentation, and demonstrate the completed application.
 
+## Current milestone: Session 1 completion
+
+The initial project skeleton is now in place.
+
+- Project structure and Python packaging are configured.
+- Core architecture is documented in [docs/architecture.md](docs/architecture.md).
+- Transaction and category data models are implemented in [src/personal_expense_analytics_engine/models.py](src/personal_expense_analytics_engine/models.py).
+- A first automated test suite validates the transaction behavior.
+
+Example usage:
+
+```python
+from datetime import date
+from decimal import Decimal
+
+from personal_expense_analytics_engine.models import Transaction
+
+transaction = Transaction(
+    transaction_id="txn-100",
+    date=date(2026, 10, 14),
+    description="Tesco supermarket",
+    amount=Decimal("42.50"),
+    currency="PLN",
+    category="Groceries",
+)
+
+print(transaction.signed_amount)
+```
