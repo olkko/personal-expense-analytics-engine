@@ -1,0 +1,40 @@
+"""Convert Monobank statement items into Transaction objects."""
+
+from datetime import datetime, timezone, tzinfo
+from decimal import Decimal
+
+from personal_expense_analytics_engine.models import Transaction, TransactionDirection
+
+
+def monobank_item_to_transaction(
+    item: dict,
+    account_currency: str = "UAH",
+    tz: tzinfo = timezone.utc,
+) -> Transaction:
+    """Map one item from /personal/statement to a Transaction.
+
+    `amount` is in the ACCOUNT currency (minor units), so the currency we store is
+    the account's currency. The item's `currencyCode` / `operationAmount` describe the
+    original transaction currency and are ignored for now.
+    Negative amounts are debits (expenses), positive are credits.
+    """
+    minor_units = item["amount"]
+    direction = TransactionDirection.DEBIT if minor_units < 0 else TransactionDirection.CREDIT
+
+    return Transaction(
+        transaction_id=item["id"],
+        date=datetime.fromtimestamp(item["time"], tz=tz).date(),
+        description=item["description"],
+        amount=abs(Decimal(minor_units)) / Decimal(100),
+        currency=account_currency,
+        merchant=item.get("counterName"),
+        direction=direction,
+    )
+
+
+def monobank_statement_to_transactions(
+    items: list[dict],
+    account_currency: str = "UAH",
+    tz: tzinfo = timezone.utc,
+) -> list[Transaction]:
+    return [monobank_item_to_transaction(i, account_currency, tz) for i in items]
