@@ -1,5 +1,9 @@
-/artifact/
-/artifacts/
+.env
+data/
+.venv/
+*.egg-info/
 __pycache__/
 .pytest_cache/
+/artifact/
+/artifacts/
 *.py[cod]
