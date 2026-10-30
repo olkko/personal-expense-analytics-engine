@@ -25,6 +25,15 @@ The initial project skeleton is now in place.
 - Transaction and category data models are implemented in [src/personal_expense_analytics_engine/models.py](src/personal_expense_analytics_engine/models.py).
 - A first automated test suite validates the transaction behavior.
 
+## Development setup
+
+Install the package with its development dependencies and run the test suite:
+
+```shell
+python -m pip install -e ".[dev]"
+python -m pytest
+```
+
 Example usage:
 
 ```python

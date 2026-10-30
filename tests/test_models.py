@@ -12,6 +12,7 @@ from personal_expense_analytics_engine.models import (
 
 
 def test_category_stores_name_and_type():
+    """Store a trimmed category name and its category type."""
     category = Category(" Groceries ", CategoryType.VARIABLE)
 
     assert category.name == "Groceries"
@@ -19,6 +20,7 @@ def test_category_stores_name_and_type():
 
 
 def test_transaction_sets_expected_values():
+    """Normalize transaction values and calculate its debit amount."""
     transaction = Transaction(
         transaction_id="txn-001",
         date=date(2026, 10, 14),
@@ -36,7 +38,26 @@ def test_transaction_sets_expected_values():
     assert transaction.category == "Groceries"
 
 
+def test_transaction_normalizes_text_and_uses_slots():
+    """Normalize text fields and keep transactions slotted."""
+    transaction = Transaction(
+        transaction_id=" txn-005 ",
+        date=date(2026, 10, 18),
+        description="  Coffee  ",
+        amount=Decimal("5.00"),
+        category="  Dining  ",
+        merchant="  Cafe  ",
+    )
+
+    assert transaction.transaction_id == "txn-005"
+    assert transaction.description == "Coffee"
+    assert transaction.category == "Dining"
+    assert transaction.merchant == "Cafe"
+    assert not hasattr(transaction, "__dict__")
+
+
 def test_transaction_rejects_non_decimal_amount():
+    """Reject transaction amounts that are not Decimal instances."""
     with pytest.raises(TypeError, match="Decimal"):
         Transaction(
             transaction_id="txn-002",
@@ -47,6 +68,7 @@ def test_transaction_rejects_non_decimal_amount():
 
 
 def test_transaction_rejects_non_finite_amount():
+    """Reject Decimal amounts that are not finite."""
     with pytest.raises(ValueError, match="finite"):
         Transaction(
             transaction_id="txn-002",
@@ -57,6 +79,7 @@ def test_transaction_rejects_non_finite_amount():
 
 
 def test_transaction_handles_credit_direction():
+    """Preserve positive signed amounts for credit transactions."""
     transaction = Transaction(
         transaction_id="txn-003",
         date=date(2026, 10, 16),
@@ -72,6 +95,7 @@ def test_transaction_handles_credit_direction():
 
 
 def test_transaction_rejects_invalid_currency():
+    """Reject currency values that are not three-letter codes."""
     with pytest.raises(ValueError, match="three-letter"):
         Transaction(
             transaction_id="txn-004",
