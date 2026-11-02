@@ -3,6 +3,8 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
+MINOR_UNIT_EXPONENT = 2
+
 
 class TransactionDirection(StrEnum):
     """Direction of money movement for a transaction."""
@@ -42,12 +44,15 @@ class Category:
 
 @dataclass(frozen=True, slots=True)
 class Transaction:
-    """A normalized transaction with currency and direction information."""
+    """A normalized transaction with currency and direction information.
+
+    Money is stored as an integer number of minor units (e.g. grosze, kopiykas).
+    """
 
     transaction_id: str
     date: date
     description: str
-    amount: Decimal
+    amount_minor: int
     currency: str = "PLN"
     category: str | None = None
     merchant: str | None = None
@@ -77,11 +82,11 @@ class Transaction:
         object.__setattr__(self, "description", description)
 
     def _validate_amount(self) -> None:
-        """Require the amount to be a finite Decimal."""
-        if not isinstance(self.amount, Decimal):
-            raise TypeError("Transaction amount must be a Decimal.")
-        if not self.amount.is_finite():
-            raise ValueError("Transaction amount must be finite.")
+        """Require the amount to be a non-negative int (bool is rejected)."""
+        if isinstance(self.amount_minor, bool) or not isinstance(self.amount_minor, int):
+            raise TypeError("Transaction amount_minor must be an int.")
+        if self.amount_minor < 0:
+            raise ValueError("Transaction amount_minor cannot be negative.")
 
     def _normalize_currency(self) -> None:
         """Uppercase the currency code and require three alphabetic letters."""
@@ -102,8 +107,18 @@ class Transaction:
         return self.direction == TransactionDirection.DEBIT
 
     @property
-    def signed_amount(self) -> Decimal:
-        """Return the amount with a negative sign for debits."""
+    def signed_amount_minor(self) -> int:
+        """Return the amount in minor units, negative for debits."""
         if self.direction == TransactionDirection.CREDIT:
-            return self.amount
-        return -self.amount
+            return self.amount_minor
+        return -self.amount_minor
+
+    @property
+    def amount(self) -> Decimal:
+        """Return the amount as a Decimal. For display only, not for calculations."""
+        return Decimal(self.amount_minor) / Decimal(10**MINOR_UNIT_EXPONENT)
+
+    @property
+    def signed_amount(self) -> Decimal:
+        """Return the signed amount as a Decimal. For display only."""
+        return Decimal(self.signed_amount_minor) / Decimal(10**MINOR_UNIT_EXPONENT)

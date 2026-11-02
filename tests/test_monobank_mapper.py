@@ -25,9 +25,11 @@ def make_item(**overrides):
 def test_expense_maps_to_debit():
     txn = monobank_item_to_transaction(make_item())
     assert txn.transaction_id == "abc123"
+    assert txn.amount_minor == 12550
     assert txn.amount == Decimal("125.50")
     assert txn.currency == "UAH"
     assert txn.direction == TransactionDirection.DEBIT
+    assert txn.signed_amount_minor == -12550
     assert txn.signed_amount == Decimal("-125.50")
     assert txn.date == date(2025, 10, 9)
 
@@ -35,6 +37,8 @@ def test_expense_maps_to_debit():
 def test_income_maps_to_credit():
     txn = monobank_item_to_transaction(make_item(amount=500000))
     assert txn.direction == TransactionDirection.CREDIT
+    assert txn.amount_minor == 500000
+    assert txn.signed_amount_minor == 500000
     assert txn.signed_amount == Decimal("5000.00")
 
 

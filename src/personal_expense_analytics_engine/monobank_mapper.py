@@ -1,7 +1,6 @@
 """Convert Monobank statement items into Transaction objects."""
 
 from datetime import datetime, timezone, tzinfo
-from decimal import Decimal
 
 from personal_expense_analytics_engine.models import Transaction, TransactionDirection
 
@@ -18,14 +17,17 @@ def monobank_item_to_transaction(
     original transaction currency and are ignored for now.
     Negative amounts are debits (expenses), positive are credits.
     """
-    minor_units = item["amount"]
-    direction = TransactionDirection.DEBIT if minor_units < 0 else TransactionDirection.CREDIT
+    direction = (
+        TransactionDirection.DEBIT
+        if item["amount"] < 0
+        else TransactionDirection.CREDIT
+    )
 
     return Transaction(
         transaction_id=item["id"],
         date=datetime.fromtimestamp(item["time"], tz=tz).date(),
         description=item["description"],
-        amount=abs(Decimal(minor_units)) / Decimal(100),
+        amount_minor=abs(item["amount"]),
         currency=account_currency,
         merchant=item.get("counterName"),
         direction=direction,

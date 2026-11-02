@@ -25,15 +25,17 @@ def test_transaction_sets_expected_values():
         transaction_id="txn-001",
         date=date(2026, 10, 14),
         description="Tesco supermarket",
-        amount=Decimal("42.50"),
+        amount_minor=4250,
         currency="pln",
         category="Groceries",
     )
 
     assert transaction.date == date(2026, 10, 14)
     assert transaction.amount == Decimal("42.50")
+    assert transaction.amount_minor == 4250
     assert transaction.currency == "PLN"
     assert transaction.is_expense is True
+    assert transaction.signed_amount_minor == -4250
     assert transaction.signed_amount == Decimal("-42.50")
     assert transaction.category == "Groceries"
 
@@ -44,7 +46,7 @@ def test_transaction_normalizes_text_and_uses_slots():
         transaction_id=" txn-005 ",
         date=date(2026, 10, 18),
         description="  Coffee  ",
-        amount=Decimal("5.00"),
+        amount_minor=500,
         category="  Dining  ",
         merchant="  Cafe  ",
     )
@@ -56,25 +58,26 @@ def test_transaction_normalizes_text_and_uses_slots():
     assert not hasattr(transaction, "__dict__")
 
 
-def test_transaction_rejects_non_decimal_amount():
-    """Reject transaction amounts that are not Decimal instances."""
-    with pytest.raises(TypeError, match="Decimal"):
+@pytest.mark.parametrize("amount_minor", [1.5, Decimal("1.5"), True])
+def test_transaction_rejects_non_integer_amount_minor(amount_minor):
+    """Reject amounts that are not plain ints (floats, Decimals, bools)."""
+    with pytest.raises(TypeError, match="int"):
         Transaction(
             transaction_id="txn-002",
             date=date(2026, 10, 15),
             description="Invalid payment",
-            amount="not-a-number",
+            amount_minor=amount_minor,
         )
 
 
-def test_transaction_rejects_non_finite_amount():
-    """Reject Decimal amounts that are not finite."""
-    with pytest.raises(ValueError, match="finite"):
+def test_transaction_rejects_negative_amount_minor():
+    """Reject negative amounts; direction carries the sign."""
+    with pytest.raises(ValueError, match="negative"):
         Transaction(
             transaction_id="txn-002",
             date=date(2026, 10, 15),
             description="Invalid payment",
-            amount=Decimal("NaN"),
+            amount_minor=-1,
         )
 
 
@@ -84,12 +87,14 @@ def test_transaction_handles_credit_direction():
         transaction_id="txn-003",
         date=date(2026, 10, 16),
         description="Salary",
-        amount=Decimal("3000"),
+        amount_minor=300000,
         direction=TransactionDirection.CREDIT,
         category="Income",
     )
 
     assert transaction.is_expense is False
+    assert transaction.signed_amount_minor == 300000
+    assert transaction.amount == Decimal("3000")
     assert transaction.signed_amount == Decimal("3000")
     assert transaction.category == "Income"
 
@@ -101,6 +106,6 @@ def test_transaction_rejects_invalid_currency():
             transaction_id="txn-004",
             date=date(2026, 10, 17),
             description="Payment",
-            amount=Decimal("10"),
+            amount_minor=1000,
             currency="PL",
         )

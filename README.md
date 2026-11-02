@@ -38,7 +38,6 @@ Example usage:
 
 ```python
 from datetime import date
-from decimal import Decimal
 
 from personal_expense_analytics_engine.models import Transaction
 
@@ -46,10 +45,14 @@ transaction = Transaction(
     transaction_id="txn-100",
     date=date(2026, 10, 14),
     description="Tesco supermarket",
-    amount=Decimal("42.50"),
+    amount_minor=4250,
     currency="PLN",
     category="Groceries",
 )
 
-print(transaction.signed_amount)
+print(transaction.signed_amount_minor)
 ```
+
+Transaction amounts are stored as integer minor units (for example, 4250 grosze
+is 42.50 PLN). The `amount` and `signed_amount` properties are Decimal values
+for display only; use the minor-unit fields for storage and arithmetic.

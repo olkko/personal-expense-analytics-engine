@@ -2,10 +2,13 @@
 
 import os
 import time
-from decimal import Decimal
 
 import requests
 from dotenv import load_dotenv
+
+from personal_expense_analytics_engine.monobank_mapper import (
+    monobank_item_to_transaction,
+)
 
 load_dotenv()
 
@@ -49,9 +52,10 @@ if __name__ == "__main__":
     client = MonobankClient()
     now = int(time.time())
     for item in client.statement(now - 30 * 24 * 3600, now)[:5]:
+        transaction = monobank_item_to_transaction(item)
         print(
             item["time"],
             item["description"],
-            Decimal(item["amount"]) / 100,
+            transaction.signed_amount,
             CURRENCIES.get(item["currencyCode"], item["currencyCode"]),
         )

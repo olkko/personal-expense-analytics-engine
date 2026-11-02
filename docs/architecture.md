@@ -27,7 +27,9 @@ This project is structured around a simple data-processing pipeline for personal
 ## Core data structures
 
 - Category: defines a label and spending type.
-- Transaction: stores a dated transaction, amount, currency, category, and debit/credit direction.
+- Transaction: stores a dated transaction, its non-negative integer amount in minor currency units, currency, category, and debit/credit direction. Signed arithmetic uses `signed_amount_minor`; `amount` and `signed_amount` are Decimal display helpers derived from minor units. The current minor-unit exponent is 2 for PLN, UAH, USD, and EUR.
+
+For example, `amount_minor=4250` represents 42.50 PLN.
 
 ## Planned flow
 
