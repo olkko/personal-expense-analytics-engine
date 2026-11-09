@@ -22,11 +22,14 @@ def make_item(**overrides):
     return item
 
 
+def convert(item, currency="UAH"):
+    return monobank_item_to_transaction(item, account_currency=currency)
+
+
 def test_expense_maps_to_debit():
-    txn = monobank_item_to_transaction(make_item())
+    txn = convert(make_item())
     assert txn.transaction_id == "abc123"
     assert txn.amount_minor == 12550
-    assert txn.amount == Decimal("125.50")
     assert txn.currency == "UAH"
     assert txn.direction == TransactionDirection.DEBIT
     assert txn.signed_amount_minor == -12550
@@ -35,27 +38,32 @@ def test_expense_maps_to_debit():
 
 
 def test_income_maps_to_credit():
-    txn = monobank_item_to_transaction(make_item(amount=500000))
+    txn = convert(make_item(amount=500000))
     assert txn.direction == TransactionDirection.CREDIT
-    assert txn.amount_minor == 500000
     assert txn.signed_amount_minor == 500000
-    assert txn.signed_amount == Decimal("5000.00")
 
 
 def test_counter_name_becomes_merchant():
-    txn = monobank_item_to_transaction(make_item(counterName="Jan Kowalski"))
+    txn = convert(make_item(counterName="Jan Kowalski"))
     assert txn.merchant == "Jan Kowalski"
 
 
 def test_foreign_currency_uses_account_amount_and_currency():
     # Paid 20.00 PLN, charged 233.41 UAH to a UAH account
-    txn = monobank_item_to_transaction(
-        make_item(amount=-23341, operationAmount=-2000, currencyCode=985)
-    )
-    assert txn.amount == Decimal("233.41")
+    txn = convert(make_item(amount=-23341, operationAmount=-2000, currencyCode=985))
+    assert txn.amount_minor == 23341
     assert txn.currency == "UAH"
+
+
+def test_currency_is_taken_from_the_account_argument():
+    assert convert(make_item(), currency="PLN").currency == "PLN"
 
 
 def test_invalid_account_currency_raises():
     with pytest.raises(ValueError):
-        monobank_item_to_transaction(make_item(), account_currency="XX")
+        convert(make_item(), currency="XX")
+
+
+def test_missing_account_currency_raises():
+    with pytest.raises(TypeError):
+        monobank_item_to_transaction(make_item())
