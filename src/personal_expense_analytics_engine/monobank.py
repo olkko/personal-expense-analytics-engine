@@ -6,15 +6,10 @@ import time
 import requests
 from dotenv import load_dotenv
 
-from personal_expense_analytics_engine.monobank_mapper import (
-    monobank_item_to_transaction,
-)
-
 load_dotenv()
 
 BASE_URL = "https://api.monobank.ua"
 MAX_RANGE_SECONDS = 31 * 24 * 3600 + 3600  # API limit: 31 days + 1 hour
-CURRENCIES = {980: "UAH", 985: "PLN", 840: "USD", 978: "EUR"}
 
 
 class MonobankError(Exception):
@@ -49,13 +44,17 @@ class MonobankClient:
 
 
 if __name__ == "__main__":
+    from personal_expense_analytics_engine.monobank_mapper import (
+        monobank_item_to_transaction,
+    )
+
     client = MonobankClient()
     now = int(time.time())
     for item in client.statement(now - 30 * 24 * 3600, now)[:5]:
         transaction = monobank_item_to_transaction(item)
         print(
-            item["time"],
-            item["description"],
+            transaction.date,
+            transaction.description,
             transaction.signed_amount,
-            CURRENCIES.get(item["currencyCode"], item["currencyCode"]),
+            transaction.currency,
         )
