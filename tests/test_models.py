@@ -109,3 +109,25 @@ def test_transaction_rejects_invalid_currency():
             amount_minor=1000,
             currency="PL",
         )
+
+
+@pytest.mark.parametrize(
+    ("currency", "amount_minor", "expected_amount"),
+    [
+        ("JPY", 123, Decimal("123")),
+        ("KWD", 1234, Decimal("1.234")),
+    ],
+)
+def test_transaction_amount_uses_currency_minor_unit_precision(
+    currency, amount_minor, expected_amount
+):
+    """Convert minor units using the exponent defined for the currency."""
+    transaction = Transaction(
+        transaction_id="txn-currency",
+        date=date(2026, 10, 30),
+        description="Currency precision check",
+        amount_minor=amount_minor,
+        currency=currency,
+    )
+
+    assert transaction.amount == expected_amount

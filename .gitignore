@@ -7,3 +7,6 @@ __pycache__/
 /artifact/
 /artifacts/
 *.py[cod]
+/secrets/
+*.pem
+*.key

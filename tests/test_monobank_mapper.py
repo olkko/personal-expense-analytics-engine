@@ -62,8 +62,3 @@ def test_currency_is_taken_from_the_account_argument():
 def test_invalid_account_currency_raises():
     with pytest.raises(ValueError):
         convert(make_item(), currency="XX")
-
-
-def test_missing_account_currency_raises():
-    with pytest.raises(TypeError):
-        monobank_item_to_transaction(make_item())

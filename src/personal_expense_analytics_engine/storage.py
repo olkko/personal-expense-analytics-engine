@@ -27,7 +27,18 @@ CREATE INDEX IF NOT EXISTS idx_txn_date ON transactions (date);
 
 
 def connect(path: str | Path = "data/expenses.db") -> sqlite3.Connection:
-    """Open (and create if needed) the database and make sure the schema exists."""
+    """Open (and create if needed) the database and make sure the schema exists.
+
+    Args:
+        path (str | Path): Database file path, or ``":memory:"`` for an in-memory DB.
+
+    Returns:
+        sqlite3.Connection: Open connection with the application schema initialized.
+
+    Raises:
+        OSError: If the database directory cannot be created.
+        sqlite3.Error: If the database cannot be opened or initialized.
+    """
     if str(path) != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
@@ -44,7 +55,19 @@ def upsert_transaction(
     is_pending: bool = False,
     mcc: int | None = None,
 ) -> None:
-    """Insert or update a transaction. An existing category is never overwritten."""
+    """Insert or update a transaction. An existing category is never overwritten.
+
+    Args:
+        conn (sqlite3.Connection): Database connection to update.
+        txn (Transaction): Transaction to insert or update.
+        account_id (str): Owning bank account identifier.
+        booked_at (int): Booking time as a Unix timestamp.
+        is_pending (bool): Whether the transaction is pending.
+        mcc (int | None): Optional merchant category code.
+
+    Raises:
+        sqlite3.Error: If the database operation fails.
+    """
     conn.execute(
         """
         INSERT INTO transactions (
@@ -82,7 +105,19 @@ def upsert_transaction(
 
 
 def delete_pending_since(conn: sqlite3.Connection, account_id: str, since: int) -> int:
-    """Delete pending rows booked at or after `since`. Returns the number deleted."""
+    """Delete pending rows booked at or after `since`.
+
+    Args:
+        conn (sqlite3.Connection): Database connection to update.
+        account_id (str): Account whose pending rows should be deleted.
+        since (int): Inclusive lower bound as a Unix timestamp.
+
+    Returns:
+        int: Number of deleted rows.
+
+    Raises:
+        sqlite3.Error: If the database operation fails.
+    """
     cur = conn.execute(
         "DELETE FROM transactions WHERE account_id = ? AND is_pending = 1 AND booked_at >= ?",
         (account_id, since),
@@ -91,6 +126,18 @@ def delete_pending_since(conn: sqlite3.Connection, account_id: str, since: int) 
 
 
 def latest_booked_at(conn: sqlite3.Connection, account_id: str) -> int | None:
+    """Return the newest booking timestamp stored for an account.
+
+    Args:
+        conn (sqlite3.Connection): Database connection to query.
+        account_id (str): Account whose newest booking time is requested.
+
+    Returns:
+        int | None: Newest Unix timestamp, or None if the account has no rows.
+
+    Raises:
+        sqlite3.Error: If the database query fails.
+    """
     row = conn.execute(
         "SELECT MAX(booked_at) FROM transactions WHERE account_id = ?", (account_id,)
     ).fetchone()
@@ -98,7 +145,19 @@ def latest_booked_at(conn: sqlite3.Connection, account_id: str) -> int | None:
 
 
 def load_transactions(conn: sqlite3.Connection, account_id: str | None = None) -> list[Transaction]:
-    """Load transactions (newest first) as Transaction objects."""
+    """Load transactions (newest first) as Transaction objects.
+
+    Args:
+        conn (sqlite3.Connection): Database connection to query.
+        account_id (str | None): Optional account filter.
+
+    Returns:
+        list[Transaction]: Matching transactions ordered newest first.
+
+    Raises:
+        sqlite3.Error: If the database query fails.
+        ValueError: If a stored date or direction is invalid.
+    """
     query = (
         "SELECT transaction_id, date, description, amount_minor, currency, category, "
         "merchant, direction FROM transactions"

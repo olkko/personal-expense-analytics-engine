@@ -17,6 +17,17 @@ def monobank_item_to_transaction(
     account the item came from. The item's `currencyCode` / `operationAmount` describe
     the original transaction currency and are ignored for now.
     Negative amounts are debits (expenses), positive are credits.
+
+    Args:
+        item (dict): Raw Monobank statement record.
+        account_currency (str): Three-letter currency code of the account.
+        tz (tzinfo): Time zone used to interpret the statement timestamp.
+
+    Returns:
+        Transaction: Normalized transaction with amount stored in minor units.
+
+    Raises:
+        KeyError: If a required statement field is missing.
     """
     direction = (
         TransactionDirection.DEBIT
@@ -40,5 +51,14 @@ def monobank_statement_to_transactions(
     account_currency: str,
     tz: tzinfo = timezone.utc,
 ) -> list[Transaction]:
-    """Map a list of statement items to Transaction objects."""
+    """Map statement items to normalized transaction objects.
+
+    Args:
+        items (list[dict]): Raw Monobank statement records.
+        account_currency (str): Three-letter currency code of the account.
+        tz (tzinfo): Time zone used to interpret statement timestamps.
+
+    Returns:
+        list[Transaction]: Normalized transactions in input order.
+    """
     return [monobank_item_to_transaction(i, account_currency, tz) for i in items]

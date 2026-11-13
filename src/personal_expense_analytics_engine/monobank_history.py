@@ -1,22 +1,54 @@
 """Fetch longer Monobank statement history within API limits."""
 
 import time
-
-from personal_expense_analytics_engine.monobank import MonobankClient
+from typing import Any, Protocol
 
 WINDOW_SECONDS = 30 * 24 * 3600
 PAGE_LIMIT = 500          # API returns at most 500 items per request
 REQUEST_PAUSE = 61        # API allows 1 request per 60 seconds
 
 
+class StatementClient(Protocol):
+    """Client interface needed to fetch paginated statement history."""
+
+    def statement(
+        self,
+        date_from: int,
+        date_to: int,
+        account: str = "0",
+    ) -> list[dict[str, Any]]:
+        """Return statement items for an account and time range.
+
+        Args:
+            date_from (int): Inclusive range start as a Unix timestamp.
+            date_to (int): Range end as a Unix timestamp.
+            account (str): Account identifier.
+
+        Returns:
+            list[dict[str, Any]]: Raw statement records.
+        """
+        ...
+
+
 def fetch_history(
-    client: MonobankClient,
+    client: StatementClient,
     days: int,
     account: str = "0",
     pause: float = REQUEST_PAUSE,
     now: int | None = None,
 ) -> list[dict]:
-    """Return raw statement items for the last `days` days, newest first, deduplicated."""
+    """Fetch raw statement items for recent days, newest first, and deduplicate them.
+
+    Args:
+        client (StatementClient): Client used to request statement pages.
+        days (int): Number of days of history to fetch.
+        account (str): Account identifier.
+        pause (float): Delay in seconds between API requests.
+        now (int | None): Optional current time as a Unix timestamp.
+
+    Returns:
+        list[dict]: Unique raw statement records, newest first.
+    """
     end = now if now is not None else int(time.time())
     start = end - days * 24 * 3600
     items_by_id: dict[str, dict] = {}

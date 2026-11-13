@@ -27,12 +27,37 @@ The initial project skeleton is now in place.
 
 ## Development setup
 
-Install the package with its development dependencies and run the test suite:
+With [Just](https://just.systems/) installed, list the available project commands
+with `just`. Install the package and development dependencies, then run tests:
 
 ```shell
-python -m pip install -e ".[dev]"
-python -m pytest
+just install
+just test
+just typecheck
 ```
+
+Run one test file with `just test-file tests/test_models.py`.
+`just typecheck` runs Pyright's static type checks on `src` and `tests`.
+
+## Enable Banking integration
+
+Enable Banking supplies the bank list for each country and handles the bank-specific
+consent flow. Register a sandbox application in the Enable Banking Control Panel,
+configure its redirect URL, and keep the downloaded private key outside source control.
+Copy `.env.example` to `.env` and fill in the application ID, private-key path, and
+the exact redirect URL registered for the application.
+
+The integration is implemented in [src/personal_expense_analytics_engine/enablebanking.py](src/personal_expense_analytics_engine/enablebanking.py).
+It lists supported banks, starts authorization, exchanges the callback code for an
+account session, and fetches paginated transactions. Map transactions with
+[enablebanking_item_to_transaction](src/personal_expense_analytics_engine/enablebanking_mapper.py)
+and store them with
+[sync_account](src/personal_expense_analytics_engine/sync.py).
+The UI or callback server must generate and retain an unguessable OAuth `state`, verify
+it on return, and then pass the returned `code` to `authorize_session`.
+
+The live authorization flow requires an Enable Banking application and a registered
+redirect URL; automated tests use mocked API responses and do not contact a bank.
 
 Example usage:
 

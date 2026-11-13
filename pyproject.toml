@@ -8,14 +8,24 @@ version = "0.1.0"
 description = "Project for tracking, analyzing and optimizing personal spending habits."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "Babel>=2.15",
+    "PyJWT[crypto]>=2.10",
+    "python-dotenv>=1.0",
+    "requests>=2.32",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pyright>=1.1.400", "pytest>=8.0", "types-PyJWT>=1.7"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
