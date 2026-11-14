@@ -104,13 +104,19 @@ def upsert_transaction(
     )
 
 
-def delete_pending_since(conn: sqlite3.Connection, account_id: str, since: int) -> int:
+def delete_pending_since(
+    conn: sqlite3.Connection,
+    account_id: str,
+    since: int,
+    until: int | None = None,
+) -> int:
     """Delete pending rows booked at or after `since`.
 
     Args:
         conn (sqlite3.Connection): Database connection to update.
         account_id (str): Account whose pending rows should be deleted.
         since (int): Inclusive lower bound as a Unix timestamp.
+        until (int | None): Optional exclusive upper bound as a Unix timestamp.
 
     Returns:
         int: Number of deleted rows.
@@ -118,10 +124,19 @@ def delete_pending_since(conn: sqlite3.Connection, account_id: str, since: int) 
     Raises:
         sqlite3.Error: If the database operation fails.
     """
-    cur = conn.execute(
-        "DELETE FROM transactions WHERE account_id = ? AND is_pending = 1 AND booked_at >= ?",
-        (account_id, since),
-    )
+    if until is None:
+        cur = conn.execute(
+            "DELETE FROM transactions "
+            "WHERE account_id = ? AND is_pending = 1 AND booked_at >= ?",
+            (account_id, since),
+        )
+    else:
+        cur = conn.execute(
+            "DELETE FROM transactions "
+            "WHERE account_id = ? AND is_pending = 1 "
+            "AND booked_at >= ? AND booked_at < ?",
+            (account_id, since, until),
+        )
     return cur.rowcount
 
 

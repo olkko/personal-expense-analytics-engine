@@ -1,7 +1,7 @@
 """Incremental synchronization of Enable Banking accounts into SQLite."""
 
 import sqlite3
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Protocol
 
 from personal_expense_analytics_engine.enablebanking_mapper import (
@@ -79,8 +79,64 @@ def sync_account(
     )
     date_from = datetime.fromtimestamp(start, timezone.utc).date()
     date_to = datetime.fromtimestamp(current_time, timezone.utc).date()
+    return _sync_transactions_in_range(conn, client, account_id, date_from, date_to)
+
+
+def sync_account_range(
+    conn: sqlite3.Connection,
+    client: TransactionClient,
+    account_id: str,
+    date_from: date,
+    date_to: date,
+) -> int:
+    """Fetch and store transactions for an explicit inclusive date range.
+
+    Args:
+        conn (sqlite3.Connection): Database connection to update.
+        client (TransactionClient): Provider used to fetch account transactions.
+        account_id (str): Account UID used by the provider and local database.
+        date_from (date): First transaction date to include.
+        date_to (date): Last transaction date to include.
+
+    Returns:
+        int: Number of fetched transaction records.
+
+    Raises:
+        ValueError: If the start date is after the end date.
+    """
+    if date_from > date_to:
+        raise ValueError("date_from must not be after date_to.")
+    return _sync_transactions_in_range(conn, client, account_id, date_from, date_to)
+
+
+def _sync_transactions_in_range(
+    conn: sqlite3.Connection,
+    client: TransactionClient,
+    account_id: str,
+    date_from: date,
+    date_to: date,
+) -> int:
+    """Fetch, normalize, and persist transactions for an inclusive date range.
+
+    Args:
+        conn (sqlite3.Connection): Database connection to update.
+        client (TransactionClient): Provider used to fetch account transactions.
+        account_id (str): Account UID used by the provider and local database.
+        date_from (date): First transaction date to include.
+        date_to (date): Last transaction date to include.
+
+    Returns:
+        int: Number of fetched transaction records.
+    """
     window_start = int(
         datetime.combine(date_from, time.min, tzinfo=timezone.utc).timestamp()
+    )
+    window_end = int(
+        datetime.combine(
+            date_to + timedelta(days=1),
+            time.min,
+            tzinfo=timezone.utc,
+        ).timestamp()
     )
 
     items = client.get_transactions(account_id, date_from, date_to)
@@ -90,7 +146,7 @@ def sync_account(
     ]
 
     with conn:
-        delete_pending_since(conn, account_id, window_start)
+        delete_pending_since(conn, account_id, window_start, window_end)
         for item, transaction in normalized:
             raw_mcc = item.get("merchant_category_code")
             mcc = (

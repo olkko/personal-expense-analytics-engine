@@ -1,8 +1,13 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from personal_expense_analytics_engine.storage import connect, load_transactions
-from personal_expense_analytics_engine.sync import sync_account
+from personal_expense_analytics_engine.models import Transaction
+from personal_expense_analytics_engine.storage import (
+    connect,
+    load_transactions,
+    upsert_transaction,
+)
+from personal_expense_analytics_engine.sync import sync_account, sync_account_range
 
 DAY = 86400
 NOW = 2_000_000_000
@@ -101,3 +106,50 @@ def test_load_transactions_returns_integer_amounts():
     txn = load_transactions(conn)[0]
     assert txn.amount_minor == 23341
     assert txn.signed_amount_minor == -23341
+
+
+def test_explicit_sync_range_deletes_only_pending_rows_inside_the_range():
+    conn = connect(":memory:")
+    inside = Transaction(
+        transaction_id="pending-inside",
+        date=date(2020, 9, 15),
+        description="Pending inside",
+        amount_minor=1000,
+    )
+    outside = Transaction(
+        transaction_id="pending-outside",
+        date=date(2020, 10, 1),
+        description="Pending outside",
+        amount_minor=1000,
+    )
+    with conn:
+        upsert_transaction(
+            conn,
+            inside,
+            account_id="acc",
+            booked_at=int(datetime(2020, 9, 15, tzinfo=timezone.utc).timestamp()),
+            is_pending=True,
+        )
+        upsert_transaction(
+            conn,
+            outside,
+            account_id="acc",
+            booked_at=int(datetime(2020, 10, 1, tzinfo=timezone.utc).timestamp()),
+            is_pending=True,
+        )
+
+    sync_account_range(
+        conn,
+        FakeClient([]),
+        "acc",
+        date(2020, 9, 1),
+        date(2020, 9, 30),
+    )
+
+    remaining = {
+        row[0]
+        for row in conn.execute(
+            "SELECT transaction_id FROM transactions WHERE is_pending = 1"
+        )
+    }
+    assert remaining == {"pending-outside"}

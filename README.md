@@ -53,11 +53,31 @@ account session, and fetches paginated transactions. Map transactions with
 [enablebanking_item_to_transaction](src/personal_expense_analytics_engine/enablebanking_mapper.py)
 and store them with
 [sync_account](src/personal_expense_analytics_engine/sync.py).
-The UI or callback server must generate and retain an unguessable OAuth `state`, verify
-it on return, and then pass the returned `code` to `authorize_session`.
+For local consent testing, the `enablebanking_cli` command generates and retains a
+random OAuth `state`, opens the authorization URL, verifies the returned state, and
+exchanges the callback code for a session. It listens only on `127.0.0.1`, uses the
+selected account UID to fetch the requested transactions, and stores them in SQLite.
+It does not persist the Enable Banking session response.
 
 The live authorization flow requires an Enable Banking application and a registered
 redirect URL; automated tests use mocked API responses and do not contact a bank.
+
+For the local command, register a loopback HTTP redirect URL such as
+`http://127.0.0.1:8765/callback` in the Enable Banking application and set the exact
+same URL as `ENABLE_BANKING_REDIRECT_URL`. From the project root, pass the date range
+to fetch explicitly. For the synthetic sample account, use dates matching its data:
+
+```shell
+python -m personal_expense_analytics_engine.enablebanking_cli \
+  --bank "Mock ASPSP" --country PL \
+  --date-from 2020-09-01 --date-to 2020-09-30
+```
+
+The command requests one day of consent, waits up to five minutes for the browser
+callback, and creates `data/expenses.db` if it does not exist. It selects the only
+linked account automatically or prompts when there are multiple accounts. The same
+flow is available as
+`just authorize "Mock ASPSP" PL 2020-09-01 2020-09-30`.
 
 Example usage:
 
