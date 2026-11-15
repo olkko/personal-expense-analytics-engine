@@ -195,3 +195,18 @@ def load_transactions(conn: sqlite3.Connection, account_id: str | None = None) -
         )
         for r in conn.execute(query, params)
     ]
+
+
+def rows_for_categorization(conn: sqlite3.Connection, *, only_uncategorized: bool = True) -> list[tuple]:
+    """Rows as (transaction_id, description, merchant, mcc, direction)."""
+    query = "SELECT transaction_id, description, merchant, mcc, direction FROM transactions"
+    if only_uncategorized:
+        query += " WHERE category IS NULL"
+    return conn.execute(query).fetchall()
+
+
+def set_category(conn: sqlite3.Connection, transaction_id: str, category: str | None) -> None:
+    conn.execute(
+        "UPDATE transactions SET category = ? WHERE transaction_id = ?",
+        (category, transaction_id),
+    )
