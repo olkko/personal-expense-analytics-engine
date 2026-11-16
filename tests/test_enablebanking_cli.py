@@ -122,9 +122,7 @@ def test_local_server_rejects_bad_state_then_accepts_valid_callback(monkeypatch)
     callback_futures = []
 
     def send_callbacks() -> tuple[int, int]:
-        invalid_callback = (
-            f"{redirect_url}?code=attacker-code&state=wrong-state"
-        )
+        invalid_callback = f"{redirect_url}?code=attacker-code&state=wrong-state"
         try:
             urlopen(invalid_callback, timeout=3)
         except HTTPError as exc:
@@ -132,13 +130,12 @@ def test_local_server_rejects_bad_state_then_accepts_valid_callback(monkeypatch)
         else:
             raise AssertionError("A callback with the wrong state was accepted.")
 
-        valid_callback = (
-            f"{redirect_url}?code=verified-code&state={expected_state}"
-        )
+        valid_callback = f"{redirect_url}?code=verified-code&state={expected_state}"
         with urlopen(valid_callback, timeout=3) as response:
             return invalid_status, response.status
 
     with ThreadPoolExecutor(max_workers=1) as executor:
+
         def fake_browser_open(url: str, new: int = 0) -> bool:
             callback_futures.append(executor.submit(send_callbacks))
             return True

@@ -4,8 +4,8 @@ import time
 from typing import Any, Protocol
 
 WINDOW_SECONDS = 30 * 24 * 3600
-PAGE_LIMIT = 500          # API returns at most 500 items per request
-REQUEST_PAUSE = 61        # API allows 1 request per 60 seconds
+PAGE_LIMIT = 500  # API returns at most 500 items per request
+REQUEST_PAUSE = 61  # API allows 1 request per 60 seconds
 
 
 class StatementClient(Protocol):

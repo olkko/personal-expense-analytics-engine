@@ -3,9 +3,19 @@
 import sqlite3
 
 
-def find_probable_duplicates(conn: sqlite3.Connection, window_seconds: int = 120) -> list[list[str]]:
+def find_probable_duplicates(
+    conn: sqlite3.Connection, window_seconds: int = 120
+) -> list[list[str]]:
     """Group transactions with the same account, amount, currency, direction and
-    description that were booked within `window_seconds` of each other."""
+    description that were booked within `window_seconds` of each other.
+
+    Args:
+        conn (sqlite3.Connection): Database connection containing transactions.
+        window_seconds (int): Maximum allowed time between likely duplicates.
+
+    Returns:
+        list[list[str]]: Groups of transaction IDs that may be duplicates.
+    """
     rows = conn.execute(
         """
         SELECT transaction_id, account_id, amount_minor, currency, direction,

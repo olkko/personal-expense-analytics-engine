@@ -159,7 +159,9 @@ def latest_booked_at(conn: sqlite3.Connection, account_id: str) -> int | None:
     return row[0]
 
 
-def load_transactions(conn: sqlite3.Connection, account_id: str | None = None) -> list[Transaction]:
+def load_transactions(
+    conn: sqlite3.Connection, account_id: str | None = None
+) -> list[Transaction]:
     """Load transactions (newest first) as Transaction objects.
 
     Args:
@@ -197,15 +199,43 @@ def load_transactions(conn: sqlite3.Connection, account_id: str | None = None) -
     ]
 
 
-def rows_for_categorization(conn: sqlite3.Connection, *, only_uncategorized: bool = True) -> list[tuple]:
-    """Rows as (transaction_id, description, merchant, mcc, direction)."""
-    query = "SELECT transaction_id, description, merchant, mcc, direction FROM transactions"
+def rows_for_categorization(
+    conn: sqlite3.Connection, *, only_uncategorized: bool = True
+) -> list[tuple]:
+    """Load transaction fields used by the categorizer.
+
+    Args:
+        conn (sqlite3.Connection): Database connection to query.
+        only_uncategorized (bool): Whether to exclude already categorized rows.
+
+    Returns:
+        list[tuple]: Rows containing transaction ID, description, merchant, MCC,
+            and direction.
+
+    Raises:
+        sqlite3.Error: If the database query fails.
+    """
+    query = (
+        "SELECT transaction_id, description, merchant, mcc, direction FROM transactions"
+    )
     if only_uncategorized:
         query += " WHERE category IS NULL"
     return conn.execute(query).fetchall()
 
 
-def set_category(conn: sqlite3.Connection, transaction_id: str, category: str | None) -> None:
+def set_category(
+    conn: sqlite3.Connection, transaction_id: str, category: str | None
+) -> None:
+    """Set or clear a transaction's category.
+
+    Args:
+        conn (sqlite3.Connection): Database connection to update.
+        transaction_id (str): ID of the transaction to update.
+        category (str | None): Category name, or None to clear the category.
+
+    Raises:
+        sqlite3.Error: If the database update fails.
+    """
     conn.execute(
         "UPDATE transactions SET category = ? WHERE transaction_id = ?",
         (category, transaction_id),

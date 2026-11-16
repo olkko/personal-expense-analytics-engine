@@ -60,7 +60,9 @@ def test_sync_twice_does_not_duplicate():
 
 def test_pending_row_is_replaced_by_settled_row():
     conn = connect(":memory:")
-    client = FakeClient([item("old", NOW - 10 * DAY), item("p1", NOW - DAY, -23341, hold=True)])
+    client = FakeClient(
+        [item("old", NOW - 10 * DAY), item("p1", NOW - DAY, -23341, hold=True)]
+    )
     sync_account(conn, client, "acc", initial_days=30, now=NOW)
     assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 2
 
@@ -88,9 +90,9 @@ def test_category_survives_resync():
     conn = connect(":memory:")
     client = FakeClient([item("a", NOW - 5 * DAY)])
     sync_account(conn, client, "acc", initial_days=30, now=NOW)
-    transaction_id = conn.execute(
-        "SELECT transaction_id FROM transactions"
-    ).fetchone()[0]
+    transaction_id = conn.execute("SELECT transaction_id FROM transactions").fetchone()[
+        0
+    ]
     conn.execute(
         "UPDATE transactions SET category = 'Groceries' WHERE transaction_id = ?",
         (transaction_id,),

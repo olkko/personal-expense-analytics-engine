@@ -4,7 +4,9 @@ from decimal import Decimal
 import pytest
 
 from personal_expense_analytics_engine.models import TransactionDirection
-from personal_expense_analytics_engine.monobank_mapper import monobank_item_to_transaction
+from personal_expense_analytics_engine.monobank_mapper import (
+    monobank_item_to_transaction,
+)
 
 
 def make_item(**overrides):

@@ -40,11 +40,28 @@ class _AuthorizationClient(Protocol):
         state: str,
         valid_until: datetime,
     ) -> dict[str, Any]:
-        """Start the bank consent flow and return its redirect URL."""
+        """Start the bank consent flow and return its redirect URL.
+
+        Args:
+            bank_name (str): Enable Banking ASPSP name.
+            country (str): Two-letter ISO country code.
+            state (str): OAuth state to verify when the user returns.
+            valid_until (datetime): Consent expiration time.
+
+        Returns:
+            dict[str, Any]: Authorization details from the API.
+        """
         ...
 
     def authorize_session(self, code: str) -> dict[str, Any]:
-        """Exchange an authorization code for a session."""
+        """Exchange an authorization code for a session.
+
+        Args:
+            code (str): Authorization code received by the callback.
+
+        Returns:
+            dict[str, Any]: Session details, including linked accounts.
+        """
         ...
 
 
@@ -162,14 +179,22 @@ def _wait_for_authorization_code(
             self._respond(200, "Authorization complete. You may close this tab.")
 
         def log_message(self, format: str, *args: object) -> None:
-            """Suppress access logs that could include the one-time authorization code."""
+            """Suppress access logs that could include the one-time authorization code.
+
+            Args:
+                format (str): Log message format supplied by the HTTP server.
+                *args (object): Values to interpolate into the log message.
+            """
 
         def _respond(self, status: int, message: str) -> None:
-            """Send a non-cacheable response without echoing callback parameters."""
+            """Send a non-cacheable response without echoing callback parameters.
+
+            Args:
+                status (int): HTTP status code to return.
+                message (str): Safe message to show in the browser.
+            """
             body = (
-                "<!doctype html><html><body><p>"
-                + message
-                + "</p></body></html>"
+                "<!doctype html><html><body><p>" + message + "</p></body></html>"
             ).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")

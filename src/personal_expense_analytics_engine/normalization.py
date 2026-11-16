@@ -7,7 +7,14 @@ _NOISE = re.compile(r"[\d#*_/\\.,;:()\-]+")
 
 
 def normalize_text(text: str) -> str:
-    """Lowercase, drop digits and punctuation, collapse whitespace."""
+    """Lowercase text, remove digits and punctuation, and collapse whitespace.
+
+    Args:
+        text (str): Text to normalize.
+
+    Returns:
+        str: Normalized text suitable for matching.
+    """
     text = unicodedata.normalize("NFKC", text).casefold()
     text = _NOISE.sub(" ", text)
     return " ".join(text.split())
@@ -18,6 +25,12 @@ def merchant_key(text: str) -> str:
 
     For payment-processor descriptors like "LIQPAY*Albion" the part after the last
     "*" is the real merchant, so it is used instead.
+
+    Args:
+        text (str): Merchant name or transaction description.
+
+    Returns:
+        str: First word of the normalized merchant name, or an empty string.
     """
     if "*" in text:
         tail = text.rsplit("*", 1)[1]

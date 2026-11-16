@@ -79,8 +79,12 @@ class Transaction:
         self._normalize_description()
         self._validate_amount()
         self._normalize_currency()
-        object.__setattr__(self, "category", self._normalize_optional_text(self.category))
-        object.__setattr__(self, "merchant", self._normalize_optional_text(self.merchant))
+        object.__setattr__(
+            self, "category", self._normalize_optional_text(self.category)
+        )
+        object.__setattr__(
+            self, "merchant", self._normalize_optional_text(self.merchant)
+        )
 
     def _normalize_transaction_id(self) -> None:
         """Trim the transaction ID and reject an empty result.
@@ -111,7 +115,9 @@ class Transaction:
             TypeError: If the amount is not an integer or is a boolean.
             ValueError: If the amount is negative.
         """
-        if isinstance(self.amount_minor, bool) or not isinstance(self.amount_minor, int):
+        if isinstance(self.amount_minor, bool) or not isinstance(
+            self.amount_minor, int
+        ):
             raise TypeError("Transaction amount_minor must be an int.")
         if self.amount_minor < 0:
             raise ValueError("Transaction amount_minor cannot be negative.")

@@ -43,9 +43,13 @@ def enablebanking_item_to_transaction(
         amount = Decimal(amount_text)
         exponent = get_currency_precision(currency.upper())
     except (InvalidOperation, ValueError) as exc:
-        raise ValueError("Enable Banking transaction has an invalid amount or currency.") from exc
+        raise ValueError(
+            "Enable Banking transaction has an invalid amount or currency."
+        ) from exc
     if not amount.is_finite() or amount < 0:
-        raise ValueError("Enable Banking transaction amount must be finite and non-negative.")
+        raise ValueError(
+            "Enable Banking transaction amount must be finite and non-negative."
+        )
 
     amount_minor = amount * (10**exponent)
     if amount_minor != amount_minor.to_integral_value():
@@ -59,7 +63,9 @@ def enablebanking_item_to_transaction(
     elif indicator == "CRDT":
         direction = TransactionDirection.CREDIT
     else:
-        raise ValueError("Enable Banking transaction has an unsupported debit/credit indicator.")
+        raise ValueError(
+            "Enable Banking transaction has an unsupported debit/credit indicator."
+        )
 
     transaction_date = (
         item.get("booking_date")
@@ -71,7 +77,9 @@ def enablebanking_item_to_transaction(
     try:
         booked_date = date.fromisoformat(transaction_date)
     except ValueError as exc:
-        raise ValueError("Enable Banking transaction contains an invalid date.") from exc
+        raise ValueError(
+            "Enable Banking transaction contains an invalid date."
+        ) from exc
 
     party_field = "creditor" if direction is TransactionDirection.DEBIT else "debtor"
     party = item.get(party_field)
@@ -80,7 +88,9 @@ def enablebanking_item_to_transaction(
     remittance = item.get("remittance_information")
     if isinstance(remittance, list):
         description = " ".join(
-            part.strip() for part in remittance if isinstance(part, str) and part.strip()
+            part.strip()
+            for part in remittance
+            if isinstance(part, str) and part.strip()
         )
     elif isinstance(remittance, str):
         description = remittance.strip()

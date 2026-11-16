@@ -13,17 +13,65 @@ INCOMING_FROM_PERSON = re.compile(r"^від\s")
 # A keyword matches when it appears at the START of a word or phrase in the
 # normalized text ("mcdonald" matches "mcdonald's"; "нова пошта" matches that phrase).
 KEYWORD_RULES: list[tuple[str, tuple[str, ...]]] = [
-    ("Groceries", ("biedronka", "żabka", "zabka", "lidl", "carrefour", "auchan",
-                   "kaufland", "silpo", "сільпо", "атб", "novus")),
+    (
+        "Groceries",
+        (
+            "biedronka",
+            "żabka",
+            "zabka",
+            "lidl",
+            "carrefour",
+            "auchan",
+            "kaufland",
+            "silpo",
+            "сільпо",
+            "атб",
+            "novus",
+        ),
+    ),
     ("Dining", ("mcdonald", "kfc", "starbucks", "glovo", "wolt", "pyszne")),
-    ("Transport", ("uber", "bolt", "koleo", "pkp", "mpk", "jakdojade", "flixbus",
-                   "укрзалізниця")),
-    ("Subscriptions", ("netflix", "spotify", "youtube", "icloud", "itunes",
-                       "openai", "anthropic", "github", "megogo")),
-    ("Utilities", ("вода", "водоканал", "водопостач", "газопостач", "електро",
-                   "опалення", "інтернет")),
-    ("Delivery", ("нова пошта", "nova poshta", "justin", "inpost", "dpd",
-                  "укрпошта", "ukrposhta")),
+    (
+        "Transport",
+        ("uber", "bolt", "koleo", "pkp", "mpk", "jakdojade", "flixbus", "укрзалізниця"),
+    ),
+    (
+        "Subscriptions",
+        (
+            "netflix",
+            "spotify",
+            "youtube",
+            "icloud",
+            "itunes",
+            "openai",
+            "anthropic",
+            "github",
+            "megogo",
+        ),
+    ),
+    (
+        "Utilities",
+        (
+            "вода",
+            "водоканал",
+            "водопостач",
+            "газопостач",
+            "електро",
+            "опалення",
+            "інтернет",
+        ),
+    ),
+    (
+        "Delivery",
+        (
+            "нова пошта",
+            "nova poshta",
+            "justin",
+            "inpost",
+            "dpd",
+            "укрпошта",
+            "ukrposhta",
+        ),
+    ),
 ]
 
 _MCC_GROUPS: dict[str, list[int]] = {
@@ -32,8 +80,23 @@ _MCC_GROUPS: dict[str, list[int]] = {
     "Transport": [4111, 4112, 4121, 4131, 4784, 4789, 5541, 5542, 7523],
     "Utilities": [4900, 4814],
     "Health": [5912, 8011, 8021, 8031, 8041, 8042, 8043, 8049, 8050, 8062, 8071, 8099],
-    "Shopping": [5262, 5311, 5331, 5399, 5651, 5661, 5691, 5699, 5732, 5734, 5942,
-                 5944, 5945, 5947, 5999],
+    "Shopping": [
+        5262,
+        5311,
+        5331,
+        5399,
+        5651,
+        5661,
+        5691,
+        5699,
+        5732,
+        5734,
+        5942,
+        5944,
+        5945,
+        5947,
+        5999,
+    ],
     "Entertainment": [7832, 7922, 7991, 7994, 7996, 7997, 7999],
     "Subscriptions": [4816, 4899, 5815, 5816, 5817, 5818, 5968, 7841],
     "Travel": [4511, 7011, *range(3000, 3300), *range(3500, 4000)],
@@ -57,7 +120,14 @@ CATEGORY_TYPES: dict[str, CategoryType] = {
 
 
 def category_type(name: str) -> CategoryType:
-    """Return the CategoryType of a category name (VARIABLE unless listed above)."""
+    """Return the type assigned to a category name.
+
+    Args:
+        name (str): Category name to look up.
+
+    Returns:
+        CategoryType: Configured type, or ``VARIABLE`` if not explicitly mapped.
+    """
     return CATEGORY_TYPES.get(name, CategoryType.VARIABLE)
 
 
@@ -71,6 +141,15 @@ def categorize(
     """Return a category name, or None if no rule matches.
 
     Order: own-card transfer, incoming from a person, keywords, MCC, credit fallback.
+
+    Args:
+        description (str): Bank-provided transaction description.
+        direction (TransactionDirection): Debit or credit direction.
+        mcc (int | None): Optional merchant category code.
+        merchant (str | None): Optional merchant name.
+
+    Returns:
+        str | None: Matching category name, or None when no rule matches.
     """
     text = normalize_text(description)
     if OWN_CARD_TRANSFER.match(text):

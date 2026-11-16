@@ -5,7 +5,10 @@ from collections import Counter
 
 from personal_expense_analytics_engine.categorization import categorize
 from personal_expense_analytics_engine.models import TransactionDirection
-from personal_expense_analytics_engine.recurring import RecurringPayment, detect_recurring
+from personal_expense_analytics_engine.recurring import (
+    RecurringPayment,
+    detect_recurring,
+)
 from personal_expense_analytics_engine.storage import (
     load_transactions,
     rows_for_categorization,
@@ -13,11 +16,20 @@ from personal_expense_analytics_engine.storage import (
 )
 
 
-def categorize_stored(conn: sqlite3.Connection, *, overwrite: bool = False) -> dict[str, int]:
+def categorize_stored(
+    conn: sqlite3.Connection, *, overwrite: bool = False
+) -> dict[str, int]:
     """Categorize stored transactions and return a count per category.
 
     By default only rows without a category are touched, so manual categories survive.
     overwrite=True recomputes everything (and replaces manual categories).
+
+    Args:
+        conn (sqlite3.Connection): Database connection containing transactions.
+        overwrite (bool): Whether to replace existing categories.
+
+    Returns:
+        dict[str, int]: Number of categorized transactions for each category.
     """
     counts: Counter[str] = Counter()
     with conn:
@@ -35,6 +47,16 @@ def categorize_stored(conn: sqlite3.Connection, *, overwrite: bool = False) -> d
     return dict(counts)
 
 
-def find_recurring_stored(conn: sqlite3.Connection, account_id: str | None = None) -> list[RecurringPayment]:
-    """Detect recurring payments in stored data. Run categorize_stored first."""
+def find_recurring_stored(
+    conn: sqlite3.Connection, account_id: str | None = None
+) -> list[RecurringPayment]:
+    """Detect recurring payments in stored data. Run categorize_stored first.
+
+    Args:
+        conn (sqlite3.Connection): Database connection containing transactions.
+        account_id (str | None): Optional account identifier to filter by.
+
+    Returns:
+        list[RecurringPayment]: Detected recurring payments.
+    """
     return detect_recurring(load_transactions(conn, account_id))

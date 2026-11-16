@@ -117,7 +117,9 @@ class EnableBankingClient:
         """
         self.config = config
         self._private_key = config.private_key_path.read_bytes()
-        self._session: _HttpSession = session if session is not None else requests.Session()
+        self._session: _HttpSession = (
+            session if session is not None else requests.Session()
+        )
 
     @classmethod
     def from_environment(cls) -> "EnableBankingClient":
@@ -221,7 +223,9 @@ class EnableBankingClient:
             raise ValueError("Authorization code cannot be empty.")
         session = self._request("POST", "/sessions", json={"code": code})
         if not isinstance(session.get("accounts"), list):
-            raise EnableBankingError("Enable Banking session response omitted accounts.")
+            raise EnableBankingError(
+                "Enable Banking session response omitted accounts."
+            )
         return session
 
     def get_transactions(

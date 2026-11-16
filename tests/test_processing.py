@@ -10,7 +10,11 @@ from personal_expense_analytics_engine.models import (
 from personal_expense_analytics_engine.normalization import merchant_key, normalize_text
 from personal_expense_analytics_engine.processing import categorize_stored
 from personal_expense_analytics_engine.recurring import detect_recurring
-from personal_expense_analytics_engine.storage import connect, load_transactions, upsert_transaction
+from personal_expense_analytics_engine.storage import (
+    connect,
+    load_transactions,
+    upsert_transaction,
+)
 
 DEBIT = TransactionDirection.DEBIT
 CREDIT = TransactionDirection.CREDIT
@@ -30,6 +34,7 @@ def txn(day, description, amount_minor, direction=DEBIT, category=None, txn_id=N
 
 # --- normalization ---
 
+
 def test_normalize_text_removes_noise_and_case():
     assert normalize_text("  KOLEO   BILETY #123 ") == "koleo bilety"
 
@@ -40,6 +45,7 @@ def test_merchant_key_uses_first_word():
 
 
 # --- categorization ---
+
 
 def test_own_card_transfer():
     assert categorize("З Білої картки", direction=CREDIT) == "Transfer"
@@ -68,6 +74,7 @@ def test_category_types():
 
 
 # --- recurring ---
+
 
 def test_monthly_subscription_is_detected():
     items = [
@@ -109,11 +116,15 @@ def test_transfers_and_too_few_occurrences_are_ignored():
         txn(date(2026, 10, 5), "Rent", 100000, category="Transfer"),
     ]
     assert detect_recurring(transfers) == []
-    two = [txn(date(2026, 9, 4), "Spotify", 5999), txn(date(2026, 10, 5), "Spotify", 5999)]
+    two = [
+        txn(date(2026, 9, 4), "Spotify", 5999),
+        txn(date(2026, 10, 5), "Spotify", 5999),
+    ]
     assert detect_recurring(two) == []
 
 
 # --- duplicates ---
+
 
 def add(conn, tid, booked_at, description="Coffee", amount_minor=500):
     upsert_transaction(
@@ -128,21 +139,36 @@ def test_probable_duplicates_must_be_close_in_time_and_identical():
     conn = connect(":memory:")
     add(conn, "a", 1000)
     add(conn, "b", 1030)
-    add(conn, "c", 1000 + 3600)            # same data, an hour later
+    add(conn, "c", 1000 + 3600)  # same data, an hour later
     add(conn, "d", 1010, amount_minor=900)  # different amount
     assert find_probable_duplicates(conn, window_seconds=120) == [["a", "b"]]
 
 
 # --- processing on stored data ---
 
+
 def test_categorize_stored_fills_only_uncategorized():
     conn = connect(":memory:")
-    upsert_transaction(conn, txn(date(2026, 10, 1), "Random Shop", 1000, txn_id="a"),
-                       account_id="acc", booked_at=1000, mcc=5411)
-    upsert_transaction(conn, txn(date(2026, 10, 2), "Random Shop", 1000, category="Custom", txn_id="b"),
-                       account_id="acc", booked_at=2000, mcc=5411)
-    upsert_transaction(conn, txn(date(2026, 10, 3), "Mystery", 1000, txn_id="c"),
-                       account_id="acc", booked_at=3000)
+    upsert_transaction(
+        conn,
+        txn(date(2026, 10, 1), "Random Shop", 1000, txn_id="a"),
+        account_id="acc",
+        booked_at=1000,
+        mcc=5411,
+    )
+    upsert_transaction(
+        conn,
+        txn(date(2026, 10, 2), "Random Shop", 1000, category="Custom", txn_id="b"),
+        account_id="acc",
+        booked_at=2000,
+        mcc=5411,
+    )
+    upsert_transaction(
+        conn,
+        txn(date(2026, 10, 3), "Mystery", 1000, txn_id="c"),
+        account_id="acc",
+        booked_at=3000,
+    )
 
     counts = categorize_stored(conn)
 

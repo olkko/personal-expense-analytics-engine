@@ -112,7 +112,10 @@ def test_get_transactions_follows_continuation_key(client_config):
     session = FakeSession(
         [
             FakeResponse(
-                {"transactions": [{"transaction_id": "first"}], "continuation_key": "next"}
+                {
+                    "transactions": [{"transaction_id": "first"}],
+                    "continuation_key": "next",
+                }
             ),
             FakeResponse({"transactions": [{"transaction_id": "second"}]}),
         ]
@@ -137,7 +140,8 @@ def test_get_transactions_follows_continuation_key(client_config):
 
 def test_api_errors_are_reported_without_response_body(client_config):
     client = EnableBankingClient(
-        client_config, FakeSession([FakeResponse({"error": "details"}, status_code=401)])
+        client_config,
+        FakeSession([FakeResponse({"error": "details"}, status_code=401)]),
     )
 
     with patch(
@@ -169,9 +173,7 @@ def test_request_jwt_is_signed_with_registered_application_key(tmp_path):
     )
 
     client.list_aspsps("PL")
-    token = session.calls[0][2]["headers"]["Authorization"].removeprefix(
-        "Bearer "
-    )
+    token = session.calls[0][2]["headers"]["Authorization"].removeprefix("Bearer ")
     claims = jwt.decode(
         token,
         private_key.public_key(),

@@ -49,7 +49,9 @@ class MonobankClient:
             timeout=15,
         )
         if response.status_code == 429:
-            raise MonobankError("Rate limit hit (1 request/60 s). Wait a minute and retry.")
+            raise MonobankError(
+                "Rate limit hit (1 request/60 s). Wait a minute and retry."
+            )
         if not response.ok:
             raise MonobankError(f"HTTP {response.status_code}: {response.text}")
         return response.json()

@@ -70,7 +70,9 @@ def sync_account(
         raise ValueError("initial_days must be at least one.")
     if overlap_days < 0:
         raise ValueError("overlap_days cannot be negative.")
-    current_time = now if now is not None else int(datetime.now(timezone.utc).timestamp())
+    current_time = (
+        now if now is not None else int(datetime.now(timezone.utc).timestamp())
+    )
     latest = latest_booked_at(conn, account_id)
     start = (
         current_time - initial_days * DAY_SECONDS
@@ -141,8 +143,7 @@ def _sync_transactions_in_range(
 
     items = client.get_transactions(account_id, date_from, date_to)
     normalized = [
-        (item, enablebanking_item_to_transaction(item, account_id))
-        for item in items
+        (item, enablebanking_item_to_transaction(item, account_id)) for item in items
     ]
 
     with conn:
