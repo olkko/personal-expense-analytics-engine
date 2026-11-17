@@ -3,7 +3,9 @@ data/
 .venv/
 *.egg-info/
 __pycache__/
+.artifact/
 .pytest_cache/
+/.ruff_cache/
 /artifact/
 /artifacts/
 *.py[cod]

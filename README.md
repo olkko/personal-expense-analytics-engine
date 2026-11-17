@@ -38,6 +38,8 @@ just typecheck
 
 Run one test file with `just test-file tests/test_models.py`.
 `just typecheck` runs Pyright's static type checks on `src` and `tests`.
+Generated pytest and Ruff caches, along with Python bytecode created by Just recipes,
+are stored under `.artifact/` (ignored by Git).
 
 ## Enable Banking integration
 

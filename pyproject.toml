@@ -21,10 +21,12 @@ dev = ["pyright>=1.1.400", "pytest>=8.0", "types-PyJWT>=1.7"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+cache_dir = ".artifact/pytest"
 
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+cache-dir = ".artifact/ruff"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
