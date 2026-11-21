@@ -2,8 +2,8 @@
 
 import re
 
-from personal_expense_analytics_engine.models import CategoryType, TransactionDirection
-from personal_expense_analytics_engine.normalization import normalize_text
+from personal_expense_analytics_engine._models import CategoryType, TransactionDirection
+from personal_expense_analytics_engine._normalization import normalize_text
 
 # "З Білої картки", "На чорну картку": moves between your own cards
 OWN_CARD_TRANSFER = re.compile(r"^(з|на)\s+(\S+\s+)?карт")

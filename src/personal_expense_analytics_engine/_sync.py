@@ -4,10 +4,10 @@ import sqlite3
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Protocol
 
-from personal_expense_analytics_engine.enablebanking_mapper import (
+from personal_expense_analytics_engine._enablebanking_mapper import (
     enablebanking_item_to_transaction,
 )
-from personal_expense_analytics_engine.storage import (
+from personal_expense_analytics_engine._storage import (
     delete_pending_since,
     latest_booked_at,
     upsert_transaction,

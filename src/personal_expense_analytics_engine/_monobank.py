@@ -2,6 +2,7 @@
 
 import os
 import time
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
@@ -17,7 +18,7 @@ class MonobankError(Exception):
 
 
 class MonobankClient:
-    def __init__(self, token: str | None = None):
+    def __init__(self, token: str | None = None) -> None:
         """Create a client using an explicit token or MONOBANK_TOKEN.
 
         Args:
@@ -26,11 +27,12 @@ class MonobankClient:
         Raises:
             MonobankError: If no token is provided or configured.
         """
-        self.token = token or os.environ.get("MONOBANK_TOKEN")
-        if not self.token:
+        resolved_token = token or os.environ.get("MONOBANK_TOKEN")
+        if not resolved_token:
             raise MonobankError("MONOBANK_TOKEN is not set (check your .env file)")
+        self.token: str = resolved_token
 
-    def _get(self, path: str):
+    def _get(self, path: str) -> Any:
         """Send an authenticated GET request to a Monobank endpoint.
 
         Args:
@@ -90,7 +92,7 @@ class MonobankClient:
 
 
 if __name__ == "__main__":
-    from personal_expense_analytics_engine.monobank_mapper import (
+    from personal_expense_analytics_engine._monobank_mapper import (
         monobank_item_to_transaction,
     )
 

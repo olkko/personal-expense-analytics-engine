@@ -1,16 +1,16 @@
 from datetime import date
 
-from personal_expense_analytics_engine.categorization import categorize, category_type
-from personal_expense_analytics_engine.duplicates import find_probable_duplicates
-from personal_expense_analytics_engine.models import (
+from personal_expense_analytics_engine._categorization import categorize, category_type
+from personal_expense_analytics_engine._duplicates import find_probable_duplicates
+from personal_expense_analytics_engine._models import (
     CategoryType,
     Transaction,
     TransactionDirection,
 )
-from personal_expense_analytics_engine.normalization import merchant_key, normalize_text
-from personal_expense_analytics_engine.processing import categorize_stored
-from personal_expense_analytics_engine.recurring import detect_recurring
-from personal_expense_analytics_engine.storage import (
+from personal_expense_analytics_engine._normalization import merchant_key, normalize_text
+from personal_expense_analytics_engine._processing import categorize_stored
+from personal_expense_analytics_engine._recurring import detect_recurring
+from personal_expense_analytics_engine._storage import (
     connect,
     load_transactions,
     upsert_transaction,

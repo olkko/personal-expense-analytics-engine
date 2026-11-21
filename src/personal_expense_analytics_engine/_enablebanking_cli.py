@@ -11,13 +11,13 @@ from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import parse_qs, urlsplit
 
-from personal_expense_analytics_engine.enablebanking import (
+from personal_expense_analytics_engine._enablebanking import (
     EnableBankingClient,
     EnableBankingConfig,
     EnableBankingError,
 )
-from personal_expense_analytics_engine.storage import connect, load_transactions
-from personal_expense_analytics_engine.sync import sync_account_range
+from personal_expense_analytics_engine._storage import connect, load_transactions
+from personal_expense_analytics_engine._sync import sync_account_range
 
 _LOCAL_HOSTS = {"localhost", "127.0.0.1"}
 

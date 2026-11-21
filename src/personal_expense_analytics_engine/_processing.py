@@ -3,13 +3,13 @@
 import sqlite3
 from collections import Counter
 
-from personal_expense_analytics_engine.categorization import categorize
-from personal_expense_analytics_engine.models import TransactionDirection
-from personal_expense_analytics_engine.recurring import (
+from personal_expense_analytics_engine._categorization import categorize
+from personal_expense_analytics_engine._models import TransactionDirection
+from personal_expense_analytics_engine._recurring import (
     RecurringPayment,
     detect_recurring,
 )
-from personal_expense_analytics_engine.storage import (
+from personal_expense_analytics_engine._storage import (
     load_transactions,
     rows_for_categorization,
     set_category,

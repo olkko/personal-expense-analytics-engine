@@ -8,7 +8,7 @@ from typing import Any
 
 from babel.numbers import get_currency_precision
 
-from personal_expense_analytics_engine.models import (
+from personal_expense_analytics_engine._models import (
     Transaction,
     TransactionDirection,
 )

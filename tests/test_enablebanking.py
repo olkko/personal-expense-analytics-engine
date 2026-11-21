@@ -7,16 +7,16 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from personal_expense_analytics_engine.enablebanking import (
+from personal_expense_analytics_engine._enablebanking import (
     EnableBankingClient,
     EnableBankingConfig,
     EnableBankingError,
 )
-from personal_expense_analytics_engine.enablebanking_mapper import (
+from personal_expense_analytics_engine._enablebanking_mapper import (
     enablebanking_item_to_transaction,
 )
-from personal_expense_analytics_engine.storage import connect, load_transactions
-from personal_expense_analytics_engine.sync import sync_account
+from personal_expense_analytics_engine._storage import connect, load_transactions
+from personal_expense_analytics_engine._sync import sync_account
 
 
 class FakeResponse:
@@ -55,7 +55,7 @@ def test_list_aspsps_authenticates_request_and_normalizes_country(client_config)
     client = EnableBankingClient(client_config, session)
 
     with patch(
-        "personal_expense_analytics_engine.enablebanking.jwt.encode",
+        "personal_expense_analytics_engine._enablebanking.jwt.encode",
         return_value="signed-token",
     ) as encode:
         banks = client.list_aspsps("pl")
@@ -75,7 +75,7 @@ def test_start_authorization_sends_consent_and_redirect_fields(client_config):
     valid_until = datetime.now(timezone.utc) + timedelta(days=10)
 
     with patch(
-        "personal_expense_analytics_engine.enablebanking.jwt.encode",
+        "personal_expense_analytics_engine._enablebanking.jwt.encode",
         return_value="signed-token",
     ):
         response = client.start_authorization(
@@ -95,7 +95,7 @@ def test_authorize_session_exchanges_code_and_returns_accounts(client_config):
     client = EnableBankingClient(client_config, session)
 
     with patch(
-        "personal_expense_analytics_engine.enablebanking.jwt.encode",
+        "personal_expense_analytics_engine._enablebanking.jwt.encode",
         return_value="signed-token",
     ):
         response = client.authorize_session("callback-code")
@@ -123,7 +123,7 @@ def test_get_transactions_follows_continuation_key(client_config):
     client = EnableBankingClient(client_config, session)
 
     with patch(
-        "personal_expense_analytics_engine.enablebanking.jwt.encode",
+        "personal_expense_analytics_engine._enablebanking.jwt.encode",
         return_value="signed-token",
     ):
         items = client.get_transactions(
@@ -145,7 +145,7 @@ def test_api_errors_are_reported_without_response_body(client_config):
     )
 
     with patch(
-        "personal_expense_analytics_engine.enablebanking.jwt.encode",
+        "personal_expense_analytics_engine._enablebanking.jwt.encode",
         return_value="signed-token",
     ):
         with pytest.raises(EnableBankingError, match="HTTP 401"):

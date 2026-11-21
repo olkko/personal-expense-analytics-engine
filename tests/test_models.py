@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from personal_expense_analytics_engine.models import (
+from personal_expense_analytics_engine._models import (
     Category,
     CategoryType,
     Transaction,

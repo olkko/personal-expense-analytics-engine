@@ -1,4 +1,4 @@
-from personal_expense_analytics_engine.monobank_history import fetch_history
+from personal_expense_analytics_engine._monobank_history import fetch_history
 
 
 class FakeClient:

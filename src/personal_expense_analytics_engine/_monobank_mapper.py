@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone, tzinfo
 
-from personal_expense_analytics_engine.models import Transaction, TransactionDirection
+from personal_expense_analytics_engine._models import Transaction, TransactionDirection
 
 
 def monobank_item_to_transaction(

@@ -4,8 +4,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from personal_expense_analytics_engine.models import Transaction
-from personal_expense_analytics_engine.normalization import merchant_key
+from personal_expense_analytics_engine._models import Transaction
+from personal_expense_analytics_engine._normalization import merchant_key
 
 # (name, typical gap in days, allowed deviation in days)
 PERIODS = [

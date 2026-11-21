@@ -22,7 +22,7 @@ The initial project skeleton is now in place.
 
 - Project structure and Python packaging are configured.
 - Core architecture is documented in [docs/architecture.md](docs/architecture.md).
-- Transaction and category data models are implemented in [src/personal_expense_analytics_engine/models.py](src/personal_expense_analytics_engine/models.py).
+- Transaction and category data models are implemented in [src/personal_expense_analytics_engine/_models.py](src/personal_expense_analytics_engine/_models.py).
 - A first automated test suite validates the transaction behavior.
 
 ## Development setup
@@ -49,12 +49,12 @@ configure its redirect URL, and keep the downloaded private key outside source c
 Copy `.env.example` to `.env` and fill in the application ID, private-key path, and
 the exact redirect URL registered for the application.
 
-The integration is implemented in [src/personal_expense_analytics_engine/enablebanking.py](src/personal_expense_analytics_engine/enablebanking.py).
+The integration is implemented in [src/personal_expense_analytics_engine/_enablebanking.py](src/personal_expense_analytics_engine/_enablebanking.py).
 It lists supported banks, starts authorization, exchanges the callback code for an
 account session, and fetches paginated transactions. Map transactions with
-[enablebanking_item_to_transaction](src/personal_expense_analytics_engine/enablebanking_mapper.py)
+[enablebanking_item_to_transaction](src/personal_expense_analytics_engine/_enablebanking_mapper.py)
 and store them with
-[sync_account](src/personal_expense_analytics_engine/sync.py).
+[sync_account](src/personal_expense_analytics_engine/_sync.py).
 For local consent testing, the `enablebanking_cli` command generates and retains a
 random OAuth `state`, opens the authorization URL, verifies the returned state, and
 exchanges the callback code for a session. It listens only on `127.0.0.1`, uses the
@@ -70,7 +70,7 @@ same URL as `ENABLE_BANKING_REDIRECT_URL`. From the project root, pass the date 
 to fetch explicitly. For the synthetic sample account, use dates matching its data:
 
 ```shell
-python -m personal_expense_analytics_engine.enablebanking_cli \
+python -m personal_expense_analytics_engine._enablebanking_cli \
   --bank "Mock ASPSP" --country PL \
   --date-from 2020-09-01 --date-to 2020-09-30
 ```
@@ -86,7 +86,7 @@ Example usage:
 ```python
 from datetime import date
 
-from personal_expense_analytics_engine.models import Transaction
+from personal_expense_analytics_engine._models import Transaction
 
 transaction = Transaction(
     transaction_id="txn-100",

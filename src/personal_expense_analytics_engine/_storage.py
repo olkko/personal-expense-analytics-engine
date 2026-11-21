@@ -4,7 +4,7 @@ import sqlite3
 from datetime import date
 from pathlib import Path
 
-from personal_expense_analytics_engine.models import Transaction, TransactionDirection
+from personal_expense_analytics_engine._models import Transaction, TransactionDirection
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS transactions (

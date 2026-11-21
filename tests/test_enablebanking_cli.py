@@ -9,11 +9,11 @@ from urllib.request import urlopen
 
 import pytest
 
-from personal_expense_analytics_engine.enablebanking import (
+from personal_expense_analytics_engine._enablebanking import (
     EnableBankingConfig,
     EnableBankingError,
 )
-from personal_expense_analytics_engine.enablebanking_cli import (
+from personal_expense_analytics_engine._enablebanking_cli import (
     AuthorizationCallbackError,
     _extract_authorization_code,
     _local_callback_target,
@@ -22,7 +22,7 @@ from personal_expense_analytics_engine.enablebanking_cli import (
     authorize_bank,
     main,
 )
-from personal_expense_analytics_engine.storage import connect, load_transactions
+from personal_expense_analytics_engine._storage import connect, load_transactions
 
 
 class FakeAuthorizationClient:
@@ -141,7 +141,7 @@ def test_local_server_rejects_bad_state_then_accepts_valid_callback(monkeypatch)
             return True
 
         monkeypatch.setattr(
-            "personal_expense_analytics_engine.enablebanking_cli.webbrowser.open",
+            "personal_expense_analytics_engine._enablebanking_cli.webbrowser.open",
             fake_browser_open,
         )
         code = _wait_for_authorization_code(
@@ -164,7 +164,7 @@ def test_authorize_bank_exchanges_only_the_verified_callback_code():
     )
 
     with patch(
-        "personal_expense_analytics_engine.enablebanking_cli._wait_for_authorization_code",
+        "personal_expense_analytics_engine._enablebanking_cli._wait_for_authorization_code",
         return_value="verified-code",
     ) as wait_for_code:
         session = authorize_bank(client, "Mock ASPSP", "PL")
@@ -234,11 +234,11 @@ def test_main_fetches_maps_and_persists_selected_account_transactions(
 
     with (
         patch(
-            "personal_expense_analytics_engine.enablebanking_cli.EnableBankingClient.from_environment",
+            "personal_expense_analytics_engine._enablebanking_cli.EnableBankingClient.from_environment",
             return_value=client,
         ),
         patch(
-            "personal_expense_analytics_engine.enablebanking_cli.authorize_bank",
+            "personal_expense_analytics_engine._enablebanking_cli.authorize_bank",
             return_value=session,
         ),
     ):

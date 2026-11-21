@@ -3,8 +3,8 @@ from decimal import Decimal
 
 import pytest
 
-from personal_expense_analytics_engine.models import TransactionDirection
-from personal_expense_analytics_engine.monobank_mapper import (
+from personal_expense_analytics_engine._models import TransactionDirection
+from personal_expense_analytics_engine._monobank_mapper import (
     monobank_item_to_transaction,
 )
 
