@@ -7,7 +7,10 @@ from personal_expense_analytics_engine._models import (
     Transaction,
     TransactionDirection,
 )
-from personal_expense_analytics_engine._normalization import merchant_key, normalize_text
+from personal_expense_analytics_engine._normalization import (
+    merchant_key,
+    normalize_text,
+)
 from personal_expense_analytics_engine._processing import categorize_stored
 from personal_expense_analytics_engine._recurring import detect_recurring
 from personal_expense_analytics_engine._storage import (
