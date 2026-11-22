@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import patch
 
 from personal_expense_analytics_engine._categorization import categorize, category_type
 from personal_expense_analytics_engine._duplicates import find_probable_duplicates
@@ -11,7 +12,12 @@ from personal_expense_analytics_engine._normalization import (
     merchant_key,
     normalize_text,
 )
-from personal_expense_analytics_engine._processing import categorize_stored
+from personal_expense_analytics_engine._ollama import CategoryPrediction
+from personal_expense_analytics_engine._processing import (
+    categorize_stored,
+    categorize_stored_with_ollama,
+    explain_uncategorized_stored,
+)
 from personal_expense_analytics_engine._recurring import detect_recurring
 from personal_expense_analytics_engine._storage import (
     connect,
@@ -62,6 +68,17 @@ def test_incoming_from_person_is_income():
 def test_keyword_rules():
     assert categorize("Холодна вода", direction=DEBIT) == "Utilities"
     assert categorize("KOLEO BILETY KOLEJOWE", direction=DEBIT, mcc=4789) == "Transport"
+    assert (
+        categorize(
+            "IZ *RESTAURANT MAR\\ \\ODENSE C\\",
+            direction=DEBIT,
+        )
+        == "Dining"
+    )
+    assert (
+        categorize("CARD PAYMENT", direction=DEBIT, merchant="Local Restaurant")
+        == "Dining"
+    )
 
 
 def test_mcc_rule_and_fallbacks():
@@ -178,6 +195,128 @@ def test_categorize_stored_fills_only_uncategorized():
     by_id = {t.transaction_id: t.category for t in load_transactions(conn)}
     assert by_id == {"a": "Groceries", "b": "Custom", "c": None}
     assert counts == {"Groceries": 1, "Uncategorized": 1}
+
+
+def test_ai_categorization_runs_rules_first_and_saves_only_uncategorized_rows():
+    conn = connect(":memory:")
+    upsert_transaction(
+        conn,
+        txn(date(2026, 10, 1), "Lidl groceries", 1000, txn_id="rule-match"),
+        account_id="acc",
+        booked_at=1000,
+    )
+    upsert_transaction(
+        conn,
+        txn(date(2026, 10, 2), "Unknown merchant", 2000, txn_id="ai-match"),
+        account_id="acc",
+        booked_at=2000,
+    )
+    upsert_transaction(
+        conn,
+        txn(
+            date(2026, 10, 3),
+            "My custom category",
+            3000,
+            category="Custom",
+            txn_id="manual",
+        ),
+        account_id="acc",
+        booked_at=3000,
+    )
+
+    with patch(
+        "personal_expense_analytics_engine._processing.categorize_transactions",
+        return_value=[
+            CategoryPrediction(
+                category="Dining",
+                confidence=0.9,
+                reason="The merchant is a restaurant.",
+                accepted=True,
+            )
+        ],
+    ) as classify:
+        counts = categorize_stored_with_ollama(conn)
+
+    sent_items = classify.call_args.args[0]
+    assert len(sent_items) == 1
+    assert sent_items[0]["description"] == "Unknown merchant"
+    assert counts == {"Groceries": 1, "Dining": 1}
+    assert {
+        transaction.transaction_id: transaction.category
+        for transaction in load_transactions(conn)
+    } == {
+        "rule-match": "Groceries",
+        "ai-match": "Dining",
+        "manual": "Custom",
+    }
+
+
+def test_ai_categorization_leaves_uncertain_rows_uncategorized():
+    conn = connect(":memory:")
+    upsert_transaction(
+        conn,
+        txn(date(2026, 10, 1), "Unknown merchant", 2000, txn_id="uncertain"),
+        account_id="acc",
+        booked_at=1000,
+    )
+
+    with patch(
+        "personal_expense_analytics_engine._processing.categorize_transactions",
+        return_value=[
+            CategoryPrediction(
+                category="Dining",
+                confidence=0.5,
+                reason="The description does not identify a restaurant.",
+                accepted=False,
+            )
+        ],
+    ):
+        counts = categorize_stored_with_ollama(conn)
+
+    assert counts == {"Uncategorized": 1}
+    assert load_transactions(conn)[0].category is None
+
+
+def test_explain_uncategorized_shows_rule_and_ai_reasons_without_saving():
+    conn = connect(":memory:")
+    upsert_transaction(
+        conn,
+        txn(date(2026, 10, 1), "Unknown merchant", 2000, txn_id="ai-row"),
+        account_id="acc",
+        booked_at=1000,
+    )
+    upsert_transaction(
+        conn,
+        txn(date(2026, 10, 2), "Lidl groceries", 3000, txn_id="rule-row"),
+        account_id="acc",
+        booked_at=2000,
+    )
+
+    with patch(
+        "personal_expense_analytics_engine._processing.categorize_transactions",
+        return_value=[
+            CategoryPrediction(
+                category="Dining",
+                confidence=0.6,
+                reason="The description is too vague.",
+                accepted=False,
+            )
+        ],
+    ) as classify:
+        explanations = explain_uncategorized_stored(conn)
+
+    assert len(explanations) == 2
+    assert explanations[0].rule_category == "Groceries"
+    assert explanations[0].ai_prediction is None
+    assert explanations[1].rule_category is None
+    assert explanations[1].ai_prediction == CategoryPrediction(
+        category="Dining",
+        confidence=0.6,
+        reason="The description is too vague.",
+        accepted=False,
+    )
+    assert classify.call_count == 1
+    assert all(transaction.category is None for transaction in load_transactions(conn))
 
 
 def test_merchant_key_uses_name_after_payment_processor_star():

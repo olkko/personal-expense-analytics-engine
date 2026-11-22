@@ -5,6 +5,11 @@ root by the UI, the AI layer and scripts. Modules whose names start with an unde
 are internal and may change without notice.
 """
 
+from ._analyst import (
+    CategoryInsight,
+    MonthlySpendingInsight,
+    monthly_spending_insight,
+)
 from ._analytics import (
     CategoryTotal,
     MonthChange,
@@ -26,12 +31,18 @@ from ._enablebanking import (
 )
 from ._models import Category, CategoryType, Transaction, TransactionDirection
 from ._monobank import MonobankClient, MonobankError
-from ._processing import categorize_stored, find_recurring_stored
+from ._ollama import OllamaAnalystError
+from ._processing import (
+    categorize_stored,
+    categorize_stored_with_ollama,
+    find_recurring_stored,
+)
 from ._recurring import RecurringPayment
 from ._storage import connect, load_transactions, set_category
 from ._sync import sync_account, sync_account_range
 
 __all__ = [
+    "CategoryInsight",
     "CategoryTotal",
     "MonthChange",
     "MonthlyTotal",
@@ -40,6 +51,7 @@ __all__ = [
     "detect_unusual_stored",
     "format_minor",
     "month_over_month",
+    "monthly_spending_insight",
     "monthly_totals",
     "partial_months",
     "Category",
@@ -49,10 +61,13 @@ __all__ = [
     "EnableBankingError",
     "MonobankClient",
     "MonobankError",
+    "MonthlySpendingInsight",
+    "OllamaAnalystError",
     "RecurringPayment",
     "Transaction",
     "TransactionDirection",
     "categorize_stored",
+    "categorize_stored_with_ollama",
     "category_type",
     "connect",
     "find_probable_duplicates",

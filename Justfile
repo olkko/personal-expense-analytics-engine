@@ -16,5 +16,11 @@ typecheck:
 authorize BANK COUNTRY FROM TO:
     python -X pycache_prefix=.artifact/pycache -m personal_expense_analytics_engine._enablebanking_cli --bank "{{BANK}}" --country "{{COUNTRY}}" --date-from "{{FROM}}" --date-to "{{TO}}"
 
+analyze MONTH CURRENCY:
+    python -X pycache_prefix=.artifact/pycache -m personal_expense_analytics_engine._analyst_cli --month "{{MONTH}}" --currency "{{CURRENCY}}"
+
+categorize:
+    python -X pycache_prefix=.artifact/pycache -m personal_expense_analytics_engine._categorization_cli
+
 test-file FILE:
     python -X pycache_prefix=.artifact/pycache -m pytest "{{FILE}}"

@@ -29,7 +29,21 @@ KEYWORD_RULES: list[tuple[str, tuple[str, ...]]] = [
             "novus",
         ),
     ),
-    ("Dining", ("mcdonald", "kfc", "starbucks", "glovo", "wolt", "pyszne")),
+    (
+        "Dining",
+        (
+            "mcdonald",
+            "kfc",
+            "starbucks",
+            "glovo",
+            "wolt",
+            "pyszne",
+            "restaurant",
+            "restauracja",
+            "ristorante",
+            "sushi",
+        ),
+    ),
     (
         "Transport",
         ("uber", "bolt", "koleo", "pkp", "mpk", "jakdojade", "flixbus", "укрзалізниця"),
@@ -117,6 +131,10 @@ CATEGORY_TYPES: dict[str, CategoryType] = {
     "Utilities": CategoryType.FIXED,
     "Subscriptions": CategoryType.FIXED,
 }
+
+CATEGORY_NAMES = frozenset(
+    {category for category, _ in KEYWORD_RULES} | set(_MCC_GROUPS) | set(CATEGORY_TYPES)
+)
 
 
 def category_type(name: str) -> CategoryType:

@@ -223,6 +223,24 @@ def rows_for_categorization(
     return conn.execute(query).fetchall()
 
 
+def rows_for_uncategorized_explanation(conn: sqlite3.Connection) -> list[tuple]:
+    """Load uncategorized transaction fields for a non-mutating explanation.
+
+    Args:
+        conn (sqlite3.Connection): Database connection to query.
+
+    Returns:
+        list[tuple]: Rows containing date, description, merchant, MCC, and direction.
+
+    Raises:
+        sqlite3.Error: If the database query fails.
+    """
+    return conn.execute(
+        "SELECT date, description, merchant, mcc, direction "
+        "FROM transactions WHERE category IS NULL ORDER BY date DESC"
+    ).fetchall()
+
+
 def set_category(
     conn: sqlite3.Connection, transaction_id: str, category: str | None
 ) -> None:

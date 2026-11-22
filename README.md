@@ -81,6 +81,79 @@ linked account automatically or prompts when there are multiple accounts. The sa
 flow is available as
 `just authorize "Mock ASPSP" PL 2020-09-01 2020-09-30`.
 
+## Local AI spending analyst
+
+The analyst calculates monthly totals, category changes, recurring expenses, and
+unusual purchases locally. Ollama then rewrites only those computed summary facts as
+a short narrative; raw transaction rows are not sent to the model. The output also
+includes the verified facts alongside the generated text. The model can still
+misinterpret the facts, so treat the computed figures as authoritative.
+
+Install and start [Ollama](https://ollama.com/), then download the default model:
+
+```shell
+ollama pull qwen3:0.6b
+```
+
+With transactions already stored in `data/expenses.db`, generate an insight for a
+month and currency:
+
+```shell
+python -m personal_expense_analytics_engine._analyst_cli \
+  --month 2020-09 --currency DKK
+```
+
+Use `--account-id` to restrict the report to an account, `--database` for another
+SQLite file, or `--model` to select another model installed in Ollama. The analyst
+does not forecast future savings or send data to a remote AI provider. The same
+command is available through Just as `just analyze 2020-09 DKK`.
+
+### Categorize imported transactions
+
+The bank import stores normalized transactions but does not categorize them
+automatically. Run the separate categorization command from the project directory
+(`personal-expense-analytics-engine`):
+
+```shell
+python -m personal_expense_analytics_engine._categorization_cli
+```
+
+It applies existing keyword and MCC rules first (for example, restaurant-name terms
+match Dining), then asks local Ollama to categorize only the still-uncategorized rows.
+The model is restricted to the application's existing category names. Only
+categories with confidence at or above `0.75` are
+saved (the confidence is model-reported, not calibrated); uncertain rows remain
+Uncategorized, and previously assigned categories are not overwritten. The prompt
+includes only the description, merchant, MCC, and
+transaction direction—no transaction ID or amount—and is sent only to the local
+Ollama service. Use `--model` or `--min-confidence` to adjust the model or confidence
+threshold. Add `--verbose` to see rule-stage counts, how many rows are sent to
+Ollama, AI result counts, and any smaller-batch retries; it does not print individual
+transaction details. Review the saved categories before relying on them in a report.
+
+The default database path, `data/expenses.db`, is relative to the current directory.
+If running from the workspace's parent directory, pass
+`--database .\personal-expense-analytics-engine\data\expenses.db` to target the
+project database.
+
+After categorizing, rerun the analyst command to include those categories in its
+monthly breakdown. The categorization command is also available as `just categorize`.
+
+To see why each remaining row is Uncategorized without saving any changes, run:
+
+```shell
+python -m personal_expense_analytics_engine._categorization_cli \
+  --explain-uncategorized
+```
+
+This checks deterministic rules and asks local Ollama for a suggested category,
+model-reported confidence, and a short explanation for rows without a rule match.
+The output marks suggestions below the confidence threshold as not accepted. The
+transaction description and merchant are displayed in your terminal and sent only
+to your local Ollama service for this explanation; no categories are changed. Treat
+the AI explanation as a hint, not a verified fact; the diagnostic also shows the
+MCC and direction supplied to the model.
+
 Example usage:
 
 ```python
