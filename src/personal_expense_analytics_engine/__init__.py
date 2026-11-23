@@ -30,7 +30,6 @@ from ._enablebanking import (
     EnableBankingError,
 )
 from ._models import Category, CategoryType, Transaction, TransactionDirection
-from ._monobank import MonobankClient, MonobankError
 from ._ollama import OllamaAnalystError
 from ._processing import (
     categorize_stored,
@@ -59,8 +58,6 @@ __all__ = [
     "EnableBankingClient",
     "EnableBankingConfig",
     "EnableBankingError",
-    "MonobankClient",
-    "MonobankError",
     "MonthlySpendingInsight",
     "OllamaAnalystError",
     "RecurringPayment",
