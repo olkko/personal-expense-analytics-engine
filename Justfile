@@ -5,7 +5,7 @@ default:
     @just --list
 
 install:
-    python -X pycache_prefix=.artifact/pycache -m pip install -e ".[dev]"
+    python -X pycache_prefix=.artifact/pycache -m pip install -e ".[dev,web]"
 
 test:
     python -X pycache_prefix=.artifact/pycache -m pytest
@@ -18,6 +18,9 @@ authorize BANK COUNTRY FROM TO:
 
 analyze MONTH CURRENCY:
     python -X pycache_prefix=.artifact/pycache -m personal_expense_analytics_engine._analyst_cli --month "{{MONTH}}" --currency "{{CURRENCY}}"
+
+dashboard:
+    python -X pycache_prefix=.artifact/pycache -m streamlit run src/personal_expense_analytics_engine/_dashboard.py
 
 categorize:
     python -X pycache_prefix=.artifact/pycache -m personal_expense_analytics_engine._categorization_cli

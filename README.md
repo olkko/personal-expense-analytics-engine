@@ -154,6 +154,37 @@ to your local Ollama service for this explanation; no categories are changed. Tr
 the AI explanation as a hint, not a verified fact; the diagnostic also shows the
 MCC and direction supplied to the model.
 
+## Web dashboard
+
+A local Streamlit dashboard visualizes the transactions stored in
+`data/expenses.db`. Install the web extra and start it from the project root:
+
+```shell
+pip install -e ".[web]"
+streamlit run src/personal_expense_analytics_engine/_dashboard.py
+```
+
+or simply `just dashboard`. It opens at <http://localhost:8501> and contains:
+
+- **KPIs** for the selected month: spending, income, net flow (each compared with
+  the previous month) and the estimated monthly cost of recurring payments.
+- **Overview**: spending vs income per month. Incomplete months (data starting
+  mid-month, or the current month) are marked with `*` and drawn lighter.
+- **Categories**: ranked spending for the month, the category mix over time (the
+  seven largest categories keep their own colour; the rest fold into "Other"),
+  and a change table against the previous month.
+- **Recurring**: detected subscriptions and bills with the next expected charge.
+- **Unusual**: purchases flagged as unusually large, with the baseline they were
+  compared with.
+- **Transactions**: searchable and filterable list of all rows.
+- **AI insight**: on demand, runs the local Ollama analyst for the selected month.
+
+The sidebar selects the database file (default `data/expenses.db`, or the
+`EXPENSES_DB` environment variable), account and currency; currencies are never
+added together. All figures are computed locally and the page re-reads the
+database when the file changes (or on **Reload data**). Run the categorization
+command first so the category views are meaningful.
+
 Example usage:
 
 ```python
