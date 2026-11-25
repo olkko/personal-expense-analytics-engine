@@ -12,6 +12,7 @@ import os
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import date
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, cast
 
@@ -23,6 +24,7 @@ from personal_expense_analytics_engine._analyst import (
     _previous_month,
     monthly_spending_insight,
 )
+from personal_expense_analytics_engine._categorization import CATEGORY_NAMES
 from personal_expense_analytics_engine._dashboard_data import (
     OTHER_CATEGORY,
     accounts,
@@ -33,6 +35,7 @@ from personal_expense_analytics_engine._dashboard_data import (
     fold_categories,
     monthly_frame,
     recurring_frame,
+    save_category_edits,
     transactions_frame,
     unusual_frame,
 )
@@ -281,6 +284,19 @@ def _kpis(data: DashboardData, month: str, previous: str | None, currency: str) 
     row = by_month[month]
     prev = by_month.get(previous) if previous is not None else None
     recurring_total = _column_total(data.recurring, "per_month")
+    in_month = data.transactions["date"].astype(str).str.startswith(month)
+    month_transactions = _rows(data.transactions, in_month)
+    spent_count = sum(
+        bool(value)
+        for value in month_transactions["counts_as_spending"].to_numpy()
+    )
+    income_count = sum(
+        bool(direction == "credit" and category == "Income")
+        for direction, category in zip(
+            month_transactions["direction"].to_numpy(),
+            month_transactions["category"].to_numpy(),
+        )
+    )
 
     def delta(column: str) -> str | None:
         if prev is None:
@@ -288,16 +304,21 @@ def _kpis(data: DashboardData, month: str, previous: str | None, currency: str) 
         return f"{row[column] - prev[column]:+,.2f} vs {previous}"
 
     cols = st.columns(4)
-    cols[0].metric(
-        f"Spent ({currency})",
-        f"{row['spent']:,.2f}",
-        delta("spent"),
-        delta_color="inverse",
-        border=True,
-    )
-    cols[1].metric(
-        f"Income ({currency})", f"{row['income']:,.2f}", delta("income"), border=True
-    )
+
+    with cols[0].container(border=True):
+        st.metric(
+            f"Spent ({currency}) | {spent_count} transaction{'s' if spent_count != 1 else ''}",
+            f"{row['spent']:,.2f}",
+            delta("spent"),
+            delta_color="inverse",
+        )
+
+    with cols[1].container(border=True):
+        st.metric(
+        f"Income ({currency}) | {income_count} transaction{'s' if income_count != 1 else ''}",
+        f"{row['income']:,.2f}", delta("income")
+        )
+
     cols[2].metric(
         f"Net flow ({currency})", f"{row['net']:,.2f}", delta("net"), border=True
     )
@@ -454,7 +475,12 @@ def _unusual_tab(data: DashboardData, month: str, currency: str) -> None:
     )
 
 
-def _transactions_tab(data: DashboardData, currency: str) -> None:
+def _transactions_tab(
+    data: DashboardData,
+    currency: str,
+    database: str,
+    account_id: str | None,
+) -> None:
     st.subheader("Transactions")
     frame = data.transactions
     filters = st.columns([2, 2, 1])
@@ -471,24 +497,80 @@ def _transactions_tab(data: DashboardData, currency: str) -> None:
     if direction != "All":
         frame = _rows(frame, frame["direction"] == direction)
     st.caption(f"{len(frame)} of {len(data.transactions)} transactions")
-    st.dataframe(
-        frame,
-        hide_index=True,
-        width="stretch",
-        height=480,
-        column_config={
-            "date": st.column_config.DateColumn("Date"),
-            "description": "Description",
-            "merchant": "Merchant",
-            "category": "Category",
-            "direction": "Direction",
-            **_money_columns(currency, "amount"),
-            "counts_as_spending": st.column_config.CheckboxColumn(
-                "Counts as spending",
-                help="Debits except Transfer and Income categories.",
-            ),
-        },
+    categories = sorted(
+        (set(CATEGORY_NAMES) | set(frame["category"])) - {"Uncategorized"}
     )
+    category_options = ["Uncategorized", *categories]
+    original = frame.copy()
+    scope = f"{database}\0{account_id}\0{currency}\0"
+    scope += "\0".join(frame["transaction_id"].astype(str))
+    scope_key = sha256(scope.encode("utf-8")).hexdigest()[:16]
+    version_key = f"category-editor-version-{scope_key}"
+    notice_key = f"category-editor-notice-{scope_key}"
+    version = st.session_state.get(version_key, 0)
+    editor_key = f"category-editor-{scope_key}-{version}"
+
+    notice = st.session_state.pop(notice_key, None)
+    if notice:
+        st.success(notice)
+
+    with st.form(f"category-form-{scope_key}-{version}"):
+        edited = st.data_editor(
+            frame,
+            hide_index=True,
+            width="stretch",
+            height=480,
+            column_order=[
+                "date",
+                "description",
+                "merchant",
+                "category",
+                "direction",
+                "amount",
+                "counts_as_spending",
+            ],
+            disabled=[
+                "transaction_id",
+                "date",
+                "description",
+                "merchant",
+                "direction",
+                "amount",
+                "counts_as_spending",
+            ],
+            column_config={
+                "date": st.column_config.DateColumn("Date"),
+                "description": "Description",
+                "merchant": "Merchant",
+                "category": st.column_config.SelectboxColumn(
+                    "Category",
+                    options=category_options,
+                    required=True,
+                    help="Choose a category, or select Uncategorized to clear it.",
+                ),
+                "direction": "Direction",
+                **_money_columns(currency, "amount"),
+                "counts_as_spending": st.column_config.CheckboxColumn(
+                    "Counts as spending",
+                    help="Debits except Transfer and Income categories.",
+                ),
+            },
+            key=editor_key,
+        )
+        save = st.form_submit_button("Save category changes", type="primary")
+
+    if save:
+        with closing(connect(database)) as conn:
+            changed_count = save_category_edits(conn, original, edited)
+        if changed_count:
+            st.session_state[version_key] = version + 1
+            st.session_state[notice_key] = (
+                f"Saved categories for {changed_count} transaction(s)."
+            )
+            st.cache_data.clear()
+            st.rerun()
+        else:
+            st.info("No category changes to save.")
 
 
 def _insight_tab(
@@ -634,7 +716,7 @@ def main() -> None:
     with tabs[3]:
         _unusual_tab(data, month, currency)
     with tabs[4]:
-        _transactions_tab(data, currency)
+        _transactions_tab(data, currency, database, account_id)
     with tabs[5]:
         _insight_tab(database, month, currency, account_id)
 

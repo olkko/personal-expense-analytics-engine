@@ -20,7 +20,7 @@ from personal_expense_analytics_engine._analytics import (
     monthly_totals,
 )
 from personal_expense_analytics_engine._recurring import detect_recurring
-from personal_expense_analytics_engine._storage import load_transactions
+from personal_expense_analytics_engine._storage import load_transactions, set_category
 
 OTHER_CATEGORY = "Other"
 MAX_CATEGORY_SERIES = 7  # the 8th colour slot is reserved for "Other"
@@ -230,12 +230,13 @@ def transactions_frame(
         account_id (str | None): Optional account filter.
 
     Returns:
-        pd.DataFrame: Columns ``date``, ``description``, ``merchant``,
-            ``category``, ``direction``, ``amount`` (signed: debits negative) and
-            ``counts_as_spending``.
+        pd.DataFrame: Columns ``transaction_id``, ``date``, ``description``,
+            ``merchant``, ``category``, ``direction``, ``amount`` (signed: debits
+            negative) and ``counts_as_spending``.
     """
     rows = [
         {
+            "transaction_id": txn.transaction_id,
             "date": txn.date,
             "description": txn.description,
             "merchant": txn.merchant or "",
@@ -251,6 +252,7 @@ def transactions_frame(
     return pd.DataFrame(
         rows,
         columns=[
+            "transaction_id",
             "date",
             "description",
             "merchant",
@@ -260,6 +262,60 @@ def transactions_frame(
             "counts_as_spending",
         ],
     )
+
+
+def save_category_edits(
+    conn: sqlite3.Connection,
+    original: pd.DataFrame,
+    edited: pd.DataFrame,
+) -> int:
+    """Persist category edits from the dashboard transaction editor.
+
+    The transaction ID is used to match rows if displayed rows are reordered.
+    The visible "Uncategorized" option is stored as a NULL category.
+
+    Args:
+        conn: Open database connection to update.
+        original: Unedited transaction rows shown in the editor.
+        edited: Rows returned by the editor after user changes.
+
+    Returns:
+        Number of transactions whose categories changed.
+
+    Raises:
+        ValueError: If the editor changed its rows or supplied an invalid category.
+        sqlite3.Error: If a category update cannot be saved.
+    """
+    original_categories = original.set_index("transaction_id")["category"]
+    edited_categories = edited.set_index("transaction_id")["category"]
+    if (
+        not original_categories.index.is_unique
+        or not edited_categories.index.is_unique
+        or set(original_categories.index) != set(edited_categories.index)
+    ):
+        raise ValueError("Edited transactions do not match the displayed rows.")
+
+    changes: list[tuple[str, str | None]] = []
+    for transaction_id in original_categories.index:
+        if not isinstance(transaction_id, str):
+            raise ValueError("Transaction IDs must be strings.")
+        current_category = original_categories.loc[transaction_id]
+        new_category = edited_categories[transaction_id]
+        if not isinstance(new_category, str):
+            raise ValueError("Transaction category must be a string.")
+        if current_category != new_category:
+            changes.append(
+                (
+                    transaction_id,
+                    None if new_category == "Uncategorized" else new_category,
+                )
+            )
+
+    for transaction_id, category in changes:
+        set_category(conn, transaction_id, category)
+    if changes:
+        conn.commit()
+    return len(changes)
 
 
 def recurring_frame(

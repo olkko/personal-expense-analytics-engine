@@ -130,6 +130,8 @@ Ollama service. Use `--model` or `--min-confidence` to adjust the model or confi
 threshold. Add `--verbose` to see rule-stage counts, how many rows are sent to
 Ollama, AI result counts, and any smaller-batch retries; it does not print individual
 transaction details. Review the saved categories before relying on them in a report.
+You can also change categories manually in the dashboard's Transactions tab; submit
+the edits with **Save category changes**, and the dashboard refreshes automatically.
 
 The default database path, `data/expenses.db`, is relative to the current directory.
 If running from the workspace's parent directory, pass

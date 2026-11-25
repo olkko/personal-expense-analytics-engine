@@ -13,6 +13,7 @@ from personal_expense_analytics_engine._dashboard_data import (
     fold_categories,
     monthly_frame,
     recurring_frame,
+    save_category_edits,
     to_major,
     transactions_frame,
 )
@@ -147,6 +148,7 @@ def test_transactions_frame_signs_amounts_and_marks_spending(conn):
 
     frame = transactions_frame(conn, "UAH").set_index("description")
 
+    assert frame.loc["Item 1", "transaction_id"] == "1"
     assert frame.loc["Item 1", "amount"] == -10.0
     assert frame.loc["Item 3", "amount"] == 30.0
     assert frame["counts_as_spending"].to_dict() == {
@@ -154,6 +156,24 @@ def test_transactions_frame_signs_amounts_and_marks_spending(conn):
         "Item 2": False,
         "Item 1": True,
     }
+
+
+def test_save_category_edits_updates_by_transaction_id_and_clears_category(conn):
+    add(conn, "1", date(2026, 9, 1), 1_000, category=None)
+    add(conn, "2", date(2026, 9, 2), 2_000, category="Groceries")
+    original = transactions_frame(conn, "UAH")
+    edited = original.copy()
+    edited.loc[edited["transaction_id"] == "1", "category"] = "Utilities"
+    edited.loc[edited["transaction_id"] == "2", "category"] = "Uncategorized"
+    edited = edited.iloc[::-1].reset_index(drop=True)
+
+    assert save_category_edits(conn, original, edited) == 2
+    categories = dict(
+        conn.execute(
+            "SELECT transaction_id, category FROM transactions ORDER BY transaction_id"
+        )
+    )
+    assert categories == {"1": "Utilities", "2": None}
 
 
 def test_recurring_frame_estimates_monthly_cost(conn):
