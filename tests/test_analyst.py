@@ -3,7 +3,10 @@ from unittest.mock import patch
 
 import pytest
 
-from personal_expense_analytics_engine._analyst import monthly_spending_insight
+from personal_expense_analytics_engine._analyst import (
+    monthly_spending_insight,
+    question_insight,
+)
 from personal_expense_analytics_engine._models import Transaction
 from personal_expense_analytics_engine._storage import connect, upsert_transaction
 
@@ -33,6 +36,69 @@ def add_transaction(
         account_id="account-1",
         booked_at=day.toordinal() * 86400,
     )
+
+
+def test_question_biggest_purchase_is_answered_locally():
+    connection = connect(":memory:")
+    add_transaction(connection, "small", date(2026, 11, 2), 1200, "Dining")
+    add_transaction(connection, "large", date(2026, 11, 3), 9900, "Shopping")
+
+    with patch("personal_expense_analytics_engine._analyst.generate_narrative") as generate:
+        answer = question_insight(
+            connection, "What was my biggest purchase?", "2026-11", "PLN"
+        )
+
+    assert "99.00 PLN" in answer.text
+    assert answer.model is None
+    generate.assert_not_called()
+
+
+def test_question_saving_advice_sends_no_numbers_or_transaction_details():
+    connection = connect(":memory:")
+    add_transaction(
+        connection,
+        "coffee-123",
+        date(2026, 11, 2),
+        1200,
+        "Dining",
+        merchant="Secret Cafe",
+    )
+    add_transaction(connection, "shop-456", date(2026, 11, 3), 9900, "Shopping")
+
+    with patch(
+        "personal_expense_analytics_engine._analyst.generate_narrative",
+        return_value="Review your largest categories.",
+    ) as generate:
+        answer = question_insight(
+            connection, "How can I save money?", "2026-11", "PLN"
+        )
+
+    evidence = generate.call_args.args[0]
+    assert answer.text == "Review your largest categories."
+    assert evidence == "The largest spending categories for the selected period are: Shopping, Dining. No recurring payment pattern was detected."
+    assert not any(character.isdigit() for character in evidence)
+    assert "Secret Cafe" not in evidence
+    assert "coffee-123" not in evidence
+
+
+def test_question_compares_two_months_locally():
+    connection = connect(":memory:")
+    add_transaction(connection, "old", date(2026, 10, 2), 1200, "Dining")
+    add_transaction(connection, "new", date(2026, 11, 2), 2500, "Dining")
+
+    with patch("personal_expense_analytics_engine._analyst.generate_narrative") as generate:
+        answer = question_insight(
+            connection,
+            "Compare 2026-10 and 2026-11",
+            "2026-11",
+            "PLN",
+        )
+
+    assert "12.00 PLN" in answer.text
+    assert "25.00 PLN" in answer.text
+    assert "13.00 PLN" in answer.text
+    assert answer.model is None
+    generate.assert_not_called()
 
 
 def test_monthly_insight_calculates_change_and_category_drivers():
@@ -75,7 +141,10 @@ def test_monthly_insight_calculates_change_and_category_drivers():
     ]
     assert insight.text == "Generated locally by Ollama."
     assert "Shopping: +46.50 PLN (31% increase)" in insight.facts_text
-    assert "10% compared with 2026-10" in generate.call_args.args[0]
+    model_evidence = generate.call_args.args[0]
+    assert "Spending increased compared with the previous period." in model_evidence
+    assert "Shopping" in model_evidence
+    assert not any(character.isdigit() for character in model_evidence)
     assert generate.call_args.kwargs["model"] == "qwen3:0.6b"
 
 

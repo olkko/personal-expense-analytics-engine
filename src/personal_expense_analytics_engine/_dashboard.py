@@ -23,6 +23,7 @@ import streamlit as st
 from personal_expense_analytics_engine._analyst import (
     _previous_month,
     monthly_spending_insight,
+    question_insight,
 )
 from personal_expense_analytics_engine._categorization import CATEGORY_NAMES
 from personal_expense_analytics_engine._dashboard_data import (
@@ -573,14 +574,13 @@ def _transactions_tab(
             st.info("No category changes to save.")
 
 
-def _insight_tab(
+def _legacy_insight_tab(
     database: str, month: str, currency: str, account_id: str | None
 ) -> None:
     st.subheader("AI spending insight")
     st.caption(
-        "Figures are computed locally; only that summary is sent to your local "
-        "Ollama service to be rewritten as prose. Treat the verified facts as "
-        "authoritative."
+        "Figures are computed locally; only a redacted qualitative summary is sent "
+        "to Ollama. Amounts and transaction details stay in this dashboard."
     )
     model = st.text_input("Ollama model", DEFAULT_MODEL)
     key = f"insight|{database}|{month}|{currency}|{account_id}|{model}"
@@ -598,11 +598,110 @@ def _insight_tab(
             except ValueError as exc:
                 st.warning(str(exc))
     insight = st.session_state.get(key)
-    if insight is None:
+    if insight is not None:
+        st.markdown(insight.text)
+        with st.expander("Verified facts the model was given"):
+            st.text(insight.facts_text)
+
+    st.divider()
+    st.subheader("Ask a privacy-safe question")
+    st.caption(
+        "Calculations happen locally. Factual answers never use Ollama; advice sends "
+        "only category names and qualitative facts, never amounts or transactions."
+    )
+    question = st.text_input(
+        "Your question",
+        placeholder=(
+            "Compare 2026-10 and 2026-11, biggest category, recurring payments, "
+            "or how can I save money?"
+        ),
+    )
+    question_key = (
+        f"question|{database}|{month}|{currency}|{account_id}|{model}|{question}"
+    )
+    if st.button("Ask", type="primary", disabled=not question.strip()):
+        with st.spinner("Preparing a privacy-safe answer…"), closing(connect(database)) as conn:
+            try:
+                st.session_state[question_key] = question_insight(
+                    conn,
+                    question,
+                    month,
+                    currency,
+                    account_id=account_id,
+                    model=model,
+                )
+            except OllamaAnalystError as exc:
+                st.error(
+                    f"Ollama is not available: {exc}\n\n"
+                    f"Start Ollama and run `ollama pull {model}`, then try again."
+                )
+            except ValueError as exc:
+                st.warning(str(exc))
+    answer = st.session_state.get(question_key)
+    if answer is not None:
+        st.markdown(answer.text)
+        with st.expander("Privacy-safe facts used"):
+            st.text(answer.facts_text)
+
+
+def _insight_tab(
+    database: str, month: str, currency: str, account_id: str | None
+) -> None:
+    """Render one conversational, privacy-safe question window."""
+    st.subheader("Ask about your spending")
+    st.caption(
+        "Ask questions in one window. Calculations happen locally; only a redacted "
+        "qualitative summary is sent to Ollama for advice."
+    )
+    model = st.text_input("Ollama model", DEFAULT_MODEL)
+    history_key = f"question-history|{database}|{month}|{currency}|{account_id}"
+    history = st.session_state.setdefault(history_key, [])
+    for item in history:
+        with st.chat_message("user"):
+            st.write(item["question"])
+        with st.chat_message("assistant"):
+            st.markdown(item["answer"])
+            with st.expander("Privacy-safe facts used"):
+                st.text(item["facts"])
+
+    question = st.chat_input(
+        "Ask: compare months, biggest purchase, spending total, recurring payments…"
+    )
+    if not question:
         return
-    st.markdown(insight.text)
-    with st.expander("Verified facts the model was given"):
-        st.text(insight.facts_text)
+
+    with st.chat_message("user"):
+        st.write(question)
+    with st.chat_message("assistant"):
+        with st.spinner("Preparing a privacy-safe answer…"), closing(
+            connect(database)
+        ) as conn:
+            try:
+                answer = question_insight(
+                    conn,
+                    question,
+                    month,
+                    currency,
+                    account_id=account_id,
+                    model=model,
+                )
+                st.markdown(answer.text)
+                with st.expander("Privacy-safe facts used"):
+                    st.text(answer.facts_text)
+                history.append(
+                    {
+                        "question": question,
+                        "answer": answer.text,
+                        "facts": answer.facts_text,
+                    }
+                )
+            except OllamaAnalystError as exc:
+                st.error(
+                    f"Ollama is not available: {exc}\n\n"
+                    f"Start Ollama and run `ollama pull {model}`, then try again."
+                )
+            except ValueError as exc:
+                st.warning(str(exc))
 
 
 def _rows(frame: pd.DataFrame, mask: Any) -> pd.DataFrame:
