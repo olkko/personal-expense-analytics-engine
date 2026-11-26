@@ -18,6 +18,7 @@ from personal_expense_analytics_engine._enablebanking_cli import (
     _extract_authorization_code,
     _local_callback_target,
     _select_account_uid,
+    _storage_account_id,
     _wait_for_authorization_code,
     authorize_bank,
     main,
@@ -266,3 +267,65 @@ def test_main_fetches_maps_and_persists_selected_account_transactions(
     assert transactions[0].description == "Synthetic purchase"
     assert transactions[0].amount_minor == 8800
     assert "Fetched 1 transaction(s)" in capsys.readouterr().out
+
+
+def _run_authorize(client, session, database_path):
+    with (
+        patch(
+            "personal_expense_analytics_engine._enablebanking_cli.EnableBankingClient.from_environment",
+            return_value=client,
+        ),
+        patch(
+            "personal_expense_analytics_engine._enablebanking_cli.authorize_bank",
+            return_value=session,
+        ),
+    ):
+        main(
+            [
+                "--bank",
+                "Mock ASPSP",
+                "--date-from",
+                "2020-09-01",
+                "--date-to",
+                "2020-09-30",
+                "--database",
+                str(database_path),
+            ]
+        )
+
+
+def test_reauthorizing_with_new_uid_does_not_duplicate(tmp_path, capsys):
+    client = FakeAuthorizationClient(
+        "http://127.0.0.1:8765/callback", "https://bank.example/authorize"
+    )
+    client.transaction_items = [
+        {
+            "entry_reference": "ref-1",
+            "transaction_amount": {"currency": "PLN", "amount": "12.50"},
+            "credit_debit_indicator": "DBIT",
+            "status": "BOOK",
+            "booking_date": "2020-09-14",
+            "creditor": {"name": "Shop"},
+            "remittance_information": ["Shop"],
+        }
+    ]
+    database_path = tmp_path / "expenses.db"
+
+    for uid in ("session-uid-1", "session-uid-2"):
+        session = {"accounts": [{"uid": uid, "identification_hash": "acct-hash"}]}
+        _run_authorize(client, session, database_path)
+
+    assert [call[0] for call in client.transaction_calls] == [
+        "session-uid-1",
+        "session-uid-2",
+    ]
+    with connect(database_path) as conn:
+        assert len(load_transactions(conn)) == 1
+        assert len(load_transactions(conn, "acct-hash")) == 1
+    assert capsys.readouterr().out.count("database has 1 for this account") == 2
+
+
+def test_storage_account_id_prefers_identification_hash():
+    assert _storage_account_id({"uid": "u", "identification_hash": "h"}) == "h"
+    assert _storage_account_id({"uid": "u", "identification_hash": " "}) == "u"
+    assert _storage_account_id({"uid": "u"}) == "u"

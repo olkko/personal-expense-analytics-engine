@@ -127,3 +127,21 @@ def test_cli_prints_summary(tmp_path, export_file, capsys):
     assert f"Imported 3 transactions for account {ACCOUNT}" in out
     assert "- Groceries: 1" in out
     assert database.is_file()
+
+
+def test_account_id_prefers_identification_hash(tmp_path):
+    path = tmp_path / "export.json"
+    path.write_text(
+        json.dumps(
+            {
+                "accounts": [
+                    {
+                        "info": {"resource_id": "res", "identification_hash": "hash"},
+                        "transactions": [],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert [a.account_id for a in load_export(path)] == ["hash"]

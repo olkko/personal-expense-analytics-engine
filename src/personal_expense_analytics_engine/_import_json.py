@@ -57,7 +57,9 @@ def _transaction_date(item: dict[str, Any]) -> date | None:
 
 def _account_id(info: dict[str, Any], index: int) -> str:
     """Pick a stable account identifier from the export's account info."""
-    for key in ("uid", "resource_id", "identification_hash"):
+    # Same preference as the live sync: identification_hash is stable across
+    # consents, so an export and a live sync of one account share an ID.
+    for key in ("identification_hash", "uid", "resource_id"):
         value = info.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()

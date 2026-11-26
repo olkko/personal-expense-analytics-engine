@@ -46,6 +46,7 @@ def sync_account(
     initial_days: int = 90,
     overlap_days: int = 7,
     now: int | None = None,
+    provider_account_id: str | None = None,
 ) -> int:
     """Fetch and store account transactions; return the number of fetched items.
 
@@ -55,10 +56,13 @@ def sync_account(
     Args:
         conn (sqlite3.Connection): Database connection to update.
         client (TransactionClient): Provider used to fetch account transactions.
-        account_id (str): Account UID used by the provider and local database.
+        account_id (str): Stable account identifier used in the local database
+            (and for the provider unless ``provider_account_id`` is given).
         initial_days (int): History window used when no transactions are stored.
         overlap_days (int): Number of days to re-fetch on subsequent runs.
         now (int | None): Optional current time as a Unix timestamp.
+        provider_account_id (str | None): Account ID to query the provider with,
+            when it differs from the stable ``account_id`` used for storage.
 
     Returns:
         int: Number of fetched transaction records.
@@ -81,7 +85,9 @@ def sync_account(
     )
     date_from = datetime.fromtimestamp(start, timezone.utc).date()
     date_to = datetime.fromtimestamp(current_time, timezone.utc).date()
-    return _sync_transactions_in_range(conn, client, account_id, date_from, date_to)
+    return _sync_transactions_in_range(
+        conn, client, account_id, date_from, date_to, provider_account_id
+    )
 
 
 def sync_account_range(
@@ -90,15 +96,20 @@ def sync_account_range(
     account_id: str,
     date_from: date,
     date_to: date,
+    *,
+    provider_account_id: str | None = None,
 ) -> int:
     """Fetch and store transactions for an explicit inclusive date range.
 
     Args:
         conn (sqlite3.Connection): Database connection to update.
         client (TransactionClient): Provider used to fetch account transactions.
-        account_id (str): Account UID used by the provider and local database.
+        account_id (str): Stable account identifier used in the local database
+            (and for the provider unless ``provider_account_id`` is given).
         date_from (date): First transaction date to include.
         date_to (date): Last transaction date to include.
+        provider_account_id (str | None): Account ID to query the provider with,
+            when it differs from the stable ``account_id`` used for storage.
 
     Returns:
         int: Number of fetched transaction records.
@@ -108,7 +119,9 @@ def sync_account_range(
     """
     if date_from > date_to:
         raise ValueError("date_from must not be after date_to.")
-    return _sync_transactions_in_range(conn, client, account_id, date_from, date_to)
+    return _sync_transactions_in_range(
+        conn, client, account_id, date_from, date_to, provider_account_id
+    )
 
 
 def _sync_transactions_in_range(
@@ -117,15 +130,19 @@ def _sync_transactions_in_range(
     account_id: str,
     date_from: date,
     date_to: date,
+    provider_account_id: str | None = None,
 ) -> int:
     """Fetch, normalize, and persist transactions for an inclusive date range.
 
     Args:
         conn (sqlite3.Connection): Database connection to update.
         client (TransactionClient): Provider used to fetch account transactions.
-        account_id (str): Account UID used by the provider and local database.
+        account_id (str): Stable account identifier used in the local database
+            (and for the provider unless ``provider_account_id`` is given).
         date_from (date): First transaction date to include.
         date_to (date): Last transaction date to include.
+        provider_account_id (str | None): Account ID to query the provider with;
+            defaults to ``account_id``.
 
     Returns:
         int: Number of fetched transaction records.
@@ -141,7 +158,9 @@ def _sync_transactions_in_range(
         ).timestamp()
     )
 
-    items = client.get_transactions(account_id, date_from, date_to)
+    items = client.get_transactions(
+        provider_account_id or account_id, date_from, date_to
+    )
     normalized = [
         (item, enablebanking_item_to_transaction(item, account_id)) for item in items
     ]
