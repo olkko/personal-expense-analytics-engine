@@ -156,6 +156,25 @@ to your local Ollama service for this explanation; no categories are changed. Tr
 the AI explanation as a hint, not a verified fact; the diagnostic also shows the
 MCC and direction supplied to the model.
 
+## Import an Enable Banking JSON export
+
+Without bank access you can load an Enable Banking export (for example the
+synthetic sandbox file `PL-Synthetic-Bank-synthetic-1.json`: one PLN account,
+91 transactions from October 2026). The file goes through the same mapping and
+storage path as a live sync, then rule-based categorization is applied:
+
+```shell
+python -m personal_expense_analytics_engine._import_json \
+  PL-Synthetic-Bank-synthetic-1.json --database data/synthetic.db
+```
+
+or `just import-json PL-Synthetic-Bank-synthetic-1.json`. Re-importing is safe: rows
+are upserted by a fingerprint of the bank record, and categories you already set
+are kept. Use a separate database (as above) to keep sample data apart from your
+own transactions, then open it in the dashboard by entering `data/synthetic.db` in
+the sidebar or starting it with `EXPENSES_DB=data/synthetic.db`. Pass
+`--no-categorize` to store rows without categories.
+
 ## Web dashboard
 
 A local Streamlit dashboard visualizes the transactions stored in

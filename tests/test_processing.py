@@ -81,6 +81,24 @@ def test_keyword_rules():
     )
 
 
+def test_polish_bank_rules():
+    savings = "Przelew na konto oszczędnościowe Przelew wysłany na rachunek: 73 1050"
+    assert categorize(savings, direction=DEBIT) == "Transfer"
+    assert categorize("Oszczędności - cel: wakacje", direction=DEBIT) == "Transfer"
+    assert categorize("Wypłata z bankomatu PEKAO WARSZAWA", direction=DEBIT) == "Cash"
+    assert (
+        categorize(
+            "Czynsz październik", direction=DEBIT, merchant="ZARZĄD NIERUCHOMOŚCI"
+        )
+        == "Housing"
+    )
+    assert categorize("PGE Obrót S.A.", direction=DEBIT) == "Utilities"
+    assert categorize("Opłata za prowadzenie rachunku", direction=DEBIT) == "Services"
+    assert categorize("LEROY MERLIN WARSZAWA", direction=DEBIT, mcc=5200) == "Shopping"
+    assert categorize("BLIK OLX PRZESYŁKA", direction=DEBIT, mcc=4215) == "Delivery"
+    assert category_type("Housing") is CategoryType.FIXED
+
+
 def test_mcc_rule_and_fallbacks():
     assert categorize("Random Shop", direction=DEBIT, mcc=5411) == "Groceries"
     assert categorize("Random Shop", direction=DEBIT) is None
