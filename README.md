@@ -130,6 +130,8 @@ Ollama service. Use `--model` or `--min-confidence` to adjust the model or confi
 threshold. Add `--verbose` to see rule-stage counts, how many rows are sent to
 Ollama, AI result counts, and any smaller-batch retries; it does not print individual
 transaction details. Review the saved categories before relying on them in a report.
+You can also change categories manually in the dashboard's Transactions tab; submit
+the edits with **Save category changes**, and the dashboard refreshes automatically.
 
 The default database path, `data/expenses.db`, is relative to the current directory.
 If running from the workspace's parent directory, pass
@@ -153,6 +155,56 @@ transaction description and merchant are displayed in your terminal and sent onl
 to your local Ollama service for this explanation; no categories are changed. Treat
 the AI explanation as a hint, not a verified fact; the diagnostic also shows the
 MCC and direction supplied to the model.
+
+## Import an Enable Banking JSON export
+
+Without bank access you can load an Enable Banking export (for example the
+synthetic sandbox file `PL-Synthetic-Bank-synthetic-1.json`: one PLN account,
+91 transactions from October 2026). The file goes through the same mapping and
+storage path as a live sync, then rule-based categorization is applied:
+
+```shell
+python -m personal_expense_analytics_engine._import_json \
+  PL-Synthetic-Bank-synthetic-1.json --database data/synthetic.db
+```
+
+or `just import-json PL-Synthetic-Bank-synthetic-1.json`. Re-importing is safe: rows
+are upserted by a fingerprint of the bank record, and categories you already set
+are kept. Use a separate database (as above) to keep sample data apart from your
+own transactions, then open it in the dashboard by entering `data/synthetic.db` in
+the sidebar or starting it with `EXPENSES_DB=data/synthetic.db`. Pass
+`--no-categorize` to store rows without categories.
+
+## Web dashboard
+
+A local Streamlit dashboard visualizes the transactions stored in
+`data/expenses.db`. Install the web extra and start it from the project root:
+
+```shell
+pip install -e ".[web]"
+streamlit run src/personal_expense_analytics_engine/_dashboard.py
+```
+
+or simply `just dashboard`. It opens at <http://localhost:8501> and contains:
+
+- **KPIs** for the selected month: spending, income, net flow (each compared with
+  the previous month) and the estimated monthly cost of recurring payments.
+- **Overview**: spending vs income per month. Incomplete months (data starting
+  mid-month, or the current month) are marked with `*` and drawn lighter.
+- **Categories**: ranked spending for the month, the category mix over time (the
+  seven largest categories keep their own colour; the rest fold into "Other"),
+  and a change table against the previous month.
+- **Recurring**: detected subscriptions and bills with the next expected charge.
+- **Unusual**: purchases flagged as unusually large, with the baseline they were
+  compared with.
+- **Transactions**: searchable and filterable list of all rows.
+- **AI insight**: on demand, runs the local Ollama analyst for the selected month.
+
+The sidebar selects the database file (default `data/expenses.db`, or the
+`EXPENSES_DB` environment variable), account and currency; currencies are never
+added together. All figures are computed locally and the page re-reads the
+database when the file changes (or on **Reload data**). Run the categorization
+command first so the category views are meaningful.
 
 Example usage:
 

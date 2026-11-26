@@ -13,6 +13,18 @@ INCOMING_FROM_PERSON = re.compile(r"^від\s")
 # A keyword matches when it appears at the START of a word or phrase in the
 # normalized text ("mcdonald" matches "mcdonald's"; "нова пошта" matches that phrase).
 KEYWORD_RULES: list[tuple[str, tuple[str, ...]]] = [
+    # Moving money to your own savings account is not spending.
+    ("Transfer", ("oszczędności", "oszczednosci")),
+    ("Cash", ("bankomat", "euronet")),
+    (
+        "Housing",
+        (
+            "czynsz",
+            "zarząd nieruchomości",
+            "spółdzielnia mieszkaniowa",
+            "opłaty eksploatacyjne",
+        ),
+    ),
     (
         "Groceries",
         (
@@ -72,6 +84,11 @@ KEYWORD_RULES: list[tuple[str, tuple[str, ...]]] = [
             "електро",
             "опалення",
             "інтернет",
+            "pge",
+            "pgnig",
+            "veolia",
+            "tauron",
+            "energa",
         ),
     ),
     (
@@ -86,6 +103,10 @@ KEYWORD_RULES: list[tuple[str, tuple[str, ...]]] = [
             "ukrposhta",
         ),
     ),
+    (
+        "Services",
+        ("opłata za prowadzenie rachunku", "compensa", "pzu", "warta"),
+    ),
 ]
 
 _MCC_GROUPS: dict[str, list[int]] = {
@@ -95,6 +116,7 @@ _MCC_GROUPS: dict[str, list[int]] = {
     "Utilities": [4900, 4814],
     "Health": [5912, 8011, 8021, 8031, 8041, 8042, 8043, 8049, 8050, 8062, 8071, 8099],
     "Shopping": [
+        5200,
         5262,
         5311,
         5331,
@@ -107,6 +129,7 @@ _MCC_GROUPS: dict[str, list[int]] = {
         5734,
         5942,
         5944,
+        5941,
         5945,
         5947,
         5999,
@@ -120,6 +143,7 @@ _MCC_GROUPS: dict[str, list[int]] = {
     "Pets": [742, 5995],
     "Services": [8999],
     "Transfer": [4829, 6538],
+    "Delivery": [4215],
 }
 MCC_CATEGORIES: dict[int, str] = {
     code: name for name, codes in _MCC_GROUPS.items() for code in codes
@@ -130,6 +154,7 @@ CATEGORY_TYPES: dict[str, CategoryType] = {
     "Income": CategoryType.INCOME,
     "Utilities": CategoryType.FIXED,
     "Subscriptions": CategoryType.FIXED,
+    "Housing": CategoryType.FIXED,
 }
 
 CATEGORY_NAMES = frozenset(

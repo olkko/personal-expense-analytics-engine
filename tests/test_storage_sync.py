@@ -155,3 +155,33 @@ def test_explicit_sync_range_deletes_only_pending_rows_inside_the_range():
         )
     }
     assert remaining == {"pending-outside"}
+
+
+class RecordingClient(FakeClient):
+    def get_transactions(self, account_uid, date_from, date_to):
+        self.calls.append((account_uid, date_from, date_to))
+        return list(self.items)
+
+
+def test_resync_under_new_provider_id_does_not_duplicate():
+    # Enable Banking issues a new account uid per consent; rows are stored under a
+    # stable id, so re-authorizing the same account must not duplicate them.
+    conn = connect(":memory:")
+    client = RecordingClient([item("a", NOW - 5 * DAY), item("b", NOW - 4 * DAY)])
+    window = (date(2033, 5, 1), date(2033, 5, 31))
+
+    sync_account_range(conn, client, "stable", *window, provider_account_id="uid-1")
+    sync_account_range(conn, client, "stable", *window, provider_account_id="uid-2")
+
+    assert [call[0] for call in client.calls] == ["uid-1", "uid-2"]
+    assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 2
+    assert {
+        row[0] for row in conn.execute("SELECT DISTINCT account_id FROM transactions")
+    } == {"stable"}
+
+
+def test_provider_id_defaults_to_account_id():
+    conn = connect(":memory:")
+    client = RecordingClient([item("a", NOW - 5 * DAY)])
+    sync_account_range(conn, client, "acc", date(2033, 5, 1), date(2033, 5, 31))
+    assert client.calls[0][0] == "acc"

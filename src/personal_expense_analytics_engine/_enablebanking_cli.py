@@ -306,6 +306,41 @@ def _select_account_uid(accounts: list[Any]) -> str:
     Raises:
         EnableBankingError: If an account is missing its UID.
     """
+    return _select_account(accounts)["uid"]
+
+
+def _storage_account_id(account: dict[str, Any]) -> str:
+    """Return an account identifier that stays the same across consents.
+
+    Enable Banking issues a new ``uid`` for every authorized session, so storing
+    rows under it would duplicate the same transactions after each re-authorization.
+    ``identification_hash`` identifies the underlying bank account across
+    sessions; the session ``uid`` is only a fallback when it is absent.
+
+    Args:
+        account (dict[str, Any]): Selected account resource.
+
+    Returns:
+        str: Identifier used for the account in the local database.
+    """
+    stable = account.get("identification_hash")
+    if isinstance(stable, str) and stable.strip():
+        return stable.strip()
+    return account["uid"]
+
+
+def _select_account(accounts: list[Any]) -> dict[str, Any]:
+    """Select an account resource without printing account identifiers.
+
+    Args:
+        accounts (list[Any]): Account resources returned by Enable Banking.
+
+    Returns:
+        dict[str, Any]: The selected account resource; its ``uid`` is validated.
+
+    Raises:
+        EnableBankingError: If an account is missing its UID.
+    """
     if not accounts:
         raise EnableBankingError("The authorized session contains no accounts.")
 
@@ -320,7 +355,7 @@ def _select_account_uid(accounts: list[Any]) -> str:
 
     if len(account_uids) == 1:
         print("Using the only linked account.")
-        return account_uids[0]
+        return accounts[0]
 
     for index, account in enumerate(accounts, start=1):
         currency = account.get("currency")
@@ -335,7 +370,7 @@ def _select_account_uid(accounts: list[Any]) -> str:
             print("Enter a number from the account list.")
             continue
         if 0 <= selected_index < len(account_uids):
-            return account_uids[selected_index]
+            return accounts[selected_index]
         print("Choose a number from the account list.")
 
 
@@ -385,16 +420,18 @@ def main(argv: list[str] | None = None) -> None:
         args.country,
         timeout_seconds=args.timeout,
     )
-    account_uid = _select_account_uid(session["accounts"])
+    account = _select_account(session["accounts"])
+    account_id = _storage_account_id(account)
     with closing(connect(args.database)) as conn:
         fetched_count = sync_account_range(
             conn,
             client,
-            account_uid,
+            account_id,
             args.date_from,
             args.date_to,
+            provider_account_id=account["uid"],
         )
-        stored_count = len(load_transactions(conn, account_uid))
+        stored_count = len(load_transactions(conn, account_id))
     print(
         f"Fetched {fetched_count} transaction(s); "
         f"database has {stored_count} for this account."

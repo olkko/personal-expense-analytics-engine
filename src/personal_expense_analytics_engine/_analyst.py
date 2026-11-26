@@ -1,5 +1,6 @@
 """Generate explainable monthly spending insights from local analytics."""
 
+import re
 import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
@@ -52,6 +53,15 @@ class MonthlySpendingInsight:
     facts_text: str
     text: str
     model: str
+
+
+@dataclass(frozen=True, slots=True)
+class QuestionInsight:
+    """Answer to a dashboard question, with privacy-safe model evidence."""
+
+    text: str
+    facts_text: str
+    model: str | None
 
 
 def _previous_month(month: str) -> str:
@@ -355,6 +365,38 @@ def _build_narrative(
     return "\n".join(lines)
 
 
+def _build_redacted_narrative(
+    *,
+    previous_spent_minor: int | None,
+    change_minor: int | None,
+    categories: tuple[CategoryInsight, ...],
+    recurring_spent_minor: int | None,
+    partial_months: set[str],
+) -> str:
+    """Build model evidence without amounts, counts, dates, or identifiers."""
+    lines: list[str] = []
+    if previous_spent_minor is None:
+        lines.append("There is no comparable previous-period spending data.")
+    elif change_minor is not None and change_minor > 0:
+        lines.append("Spending increased compared with the previous period.")
+    elif change_minor is not None and change_minor < 0:
+        lines.append("Spending decreased compared with the previous period.")
+    else:
+        lines.append("Spending was unchanged compared with the previous period.")
+
+    if categories:
+        lines.append(
+            "The main spending categories were: "
+            + ", ".join(item.category for item in categories)
+            + "."
+        )
+    if recurring_spent_minor is not None:
+        lines.append("Recurring expenses were identified.")
+    if partial_months:
+        lines.append("Some period data may be incomplete.")
+    return " ".join(lines)
+
+
 def monthly_spending_insight(
     conn: sqlite3.Connection,
     month: str,
@@ -477,7 +519,13 @@ def monthly_spending_insight(
         partial_months=partial,
     )
     text = generate_narrative(
-        facts_text,
+        _build_redacted_narrative(
+            previous_spent_minor=previous_spent,
+            change_minor=change,
+            categories=categories,
+            recurring_spent_minor=recurring_spent,
+            partial_months=partial,
+        ),
         model=model,
         base_url=ollama_url,
         timeout=ollama_timeout,
@@ -497,4 +545,186 @@ def monthly_spending_insight(
         facts_text=facts_text,
         text=text,
         model=model,
+    )
+
+
+def question_insight(
+    conn: sqlite3.Connection,
+    question: str,
+    month: str,
+    currency: str,
+    *,
+    account_id: str | None = None,
+    model: str = "qwen3:0.6b",
+    ollama_url: str = "http://127.0.0.1:11434",
+    ollama_timeout: float = 120,
+) -> QuestionInsight:
+    """Answer a supported question without sending financial numbers to Ollama.
+
+    Factual questions are answered entirely by local Python. Advice questions send
+    only category names and qualitative observations to the language model; amounts,
+    counts, transaction descriptions, merchants, and identifiers stay local.
+    """
+    normalized_question = question.strip().lower()
+    normalized_currency = currency.strip().upper()
+    if not normalized_question:
+        raise ValueError("Enter a question first.")
+    if len(normalized_currency) != 3 or not normalized_currency.isalpha():
+        raise ValueError("currency must be a three-letter code.")
+
+    transactions = [
+        item
+        for item in load_transactions(conn, account_id)
+        if item.currency == normalized_currency
+        and item.date.strftime("%Y-%m") == month
+        and item.is_expense
+        and (item.category or "") not in ("Transfer", "Income")
+    ]
+    asks_for_biggest = any(
+        word in normalized_question for word in ("biggest", "largest", "most expensive")
+    )
+    asks_for_purchase = any(
+        word in normalized_question for word in ("purchase", "expense", "transaction")
+    )
+    if asks_for_biggest and asks_for_purchase:
+        if not transactions:
+            raise ValueError(f"No spending data found for {month} in {normalized_currency}.")
+        biggest = max(transactions, key=lambda item: item.amount_minor)
+        label = biggest.merchant or biggest.description
+        return QuestionInsight(
+            text=(
+                f"Your biggest purchase in {month} was {label}: "
+                f"{format_minor(biggest.amount_minor, normalized_currency)}."
+            ),
+            facts_text="Calculated locally. No financial data was sent to Ollama.",
+            model=None,
+        )
+
+    explicit_months = list(dict.fromkeys(re.findall(r"\b20\d{2}-\d{2}\b", normalized_question)))
+    if any(word in normalized_question for word in ("compare", "versus", "vs", "difference", "change")):
+        compared_months = explicit_months[:2]
+        if len(compared_months) < 2:
+            compared_months = [_previous_month(month), month]
+        totals = {
+            item.month: item.spent_minor
+            for item in monthly_totals(conn, account_id)
+            if item.currency == normalized_currency
+        }
+        first, second = compared_months
+        first_total = totals.get(first, 0)
+        second_total = totals.get(second, 0)
+        change = second_total - first_total
+        direction = "increased" if change > 0 else "decreased" if change < 0 else "did not change"
+        return QuestionInsight(
+            text=(
+                f"Spending {direction} from {format_minor(first_total, normalized_currency)} "
+                f"in {first} to {format_minor(second_total, normalized_currency)} in {second}. "
+                f"The difference was {format_minor(abs(change), normalized_currency)}."
+            ),
+            facts_text="Calculated locally. No financial data was sent to Ollama.",
+            model=None,
+        )
+
+    if any(word in normalized_question for word in ("how much", "total", "spent")):
+        total = sum(item.amount_minor for item in transactions)
+        return QuestionInsight(
+            text=f"You spent {format_minor(total, normalized_currency)} in {month}.",
+            facts_text="Calculated locally. No financial data was sent to Ollama.",
+            model=None,
+        )
+
+    if "category" in normalized_question and any(
+        word in normalized_question for word in ("biggest", "largest", "most", "highest")
+    ):
+        category_rows = [
+            item
+            for item in category_totals(conn, month=month, account_id=account_id)
+            if item.currency == normalized_currency
+        ]
+        if not category_rows:
+            raise ValueError(f"No spending data found for {month} in {normalized_currency}.")
+        leader = category_rows[0]
+        return QuestionInsight(
+            text=(
+                f"Your largest spending category in {month} was {leader.category}: "
+                f"{format_minor(leader.spent_minor, normalized_currency)}."
+            ),
+            facts_text="Calculated locally. No financial data was sent to Ollama.",
+            model=None,
+        )
+
+    if any(word in normalized_question for word in ("recurring", "subscription", "subscriptions")):
+        recurring = [
+            item
+            for item in detect_recurring(load_transactions(conn, account_id))
+            if item.currency == normalized_currency
+        ]
+        if not recurring:
+            return QuestionInsight(
+                text="No recurring payments were detected in the stored history.",
+                facts_text="Calculated locally. No financial data was sent to Ollama.",
+                model=None,
+            )
+        labels = ", ".join(f"{item.key} ({item.frequency})" for item in recurring)
+        return QuestionInsight(
+            text=f"Detected recurring payments: {labels}.",
+            facts_text="Calculated locally. No financial data was sent to Ollama.",
+            model=None,
+        )
+
+    if any(word in normalized_question for word in ("unusual", "unexpected", "surprising")):
+        unusual = [
+            item
+            for item in detect_unusual(load_transactions(conn, account_id))
+            if item.currency == normalized_currency and item.date.strftime("%Y-%m") == month
+        ]
+        if not unusual:
+            return QuestionInsight(
+                text=f"No unusual purchases were detected in {month}.",
+                facts_text="Calculated locally. No financial data was sent to Ollama.",
+                model=None,
+            )
+        lines = [
+            f"{item.description}: {format_minor(item.amount_minor, normalized_currency)}"
+            for item in sorted(unusual, key=lambda item: item.amount_minor, reverse=True)
+        ]
+        return QuestionInsight(
+            text="Unusual purchases:\n\n" + "\n".join(f"- {line}" for line in lines),
+            facts_text="Calculated locally. No financial data was sent to Ollama.",
+            model=None,
+        )
+
+    if any(word in normalized_question for word in ("save", "saving", "reduce", "cut")):
+        category_rows = [
+            item
+            for item in category_totals(conn, month=month, account_id=account_id)
+            if item.currency == normalized_currency
+        ]
+        if not category_rows:
+            raise ValueError(f"No spending data found for {month} in {normalized_currency}.")
+        categories = ", ".join(item.category for item in category_rows[:3])
+        recurring = detect_recurring(load_transactions(conn, account_id))
+        evidence = (
+            f"The largest spending categories for the selected period are: {categories}. "
+            + (
+                "Recurring payments were detected; review them for subscriptions you no longer use."
+                if recurring
+                else "No recurring payment pattern was detected."
+            )
+        )
+        return QuestionInsight(
+            text=generate_narrative(
+                evidence,
+                model=model,
+                base_url=ollama_url,
+                timeout=ollama_timeout,
+            ),
+            facts_text=evidence,
+            model=model,
+        )
+
+    raise ValueError(
+        "Try asking about your biggest purchase, monthly comparison, spending total, "
+        "largest category, recurring payments, unusual purchases, or saving money. "
+        "Financial calculations stay local."
     )
