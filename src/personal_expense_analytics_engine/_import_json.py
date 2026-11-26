@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from personal_expense_analytics_engine._processing import categorize_stored
-from personal_expense_analytics_engine._storage import connect
+from personal_expense_analytics_engine._storage import connect, upsert_account_metadata
 from personal_expense_analytics_engine._sync import sync_account_range
 
 
@@ -30,6 +30,9 @@ class ExportedAccount:
 
     account_id: str
     transactions: tuple[dict[str, Any], ...]
+    display_name: str | None = None
+    currency: str | None = None
+    last4: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,7 +102,26 @@ def load_export(path: str | Path) -> list[ExportedAccount]:
                 f"Account #{index + 1} is missing 'info' or 'transactions'."
             )
         records = tuple(item for item in transactions if isinstance(item, dict))
-        result.append(ExportedAccount(_account_id(info, index), records))
+        identifiers = info.get("all_account_ids")
+        iban = next(
+            (
+                item.get("identification")
+                for item in identifiers
+                if isinstance(item, dict)
+                and item.get("scheme_name") == "IBAN"
+                and isinstance(item.get("identification"), str)
+            ),
+            None,
+        ) if isinstance(identifiers, list) else None
+        result.append(
+            ExportedAccount(
+                _account_id(info, index),
+                records,
+                info.get("name") or info.get("details"),
+                info.get("currency"),
+                iban[-4:] if iban else None,
+            )
+        )
     return result
 
 
@@ -143,6 +165,13 @@ def import_export(
     """
     stored: dict[str, int] = {}
     for account in load_export(path):
+        upsert_account_metadata(
+            conn,
+            account.account_id,
+            display_name=account.display_name,
+            currency=account.currency,
+            last4=account.last4,
+        )
         days = [d for item in account.transactions if (d := _transaction_date(item))]
         if not days:
             stored[account.account_id] = 0

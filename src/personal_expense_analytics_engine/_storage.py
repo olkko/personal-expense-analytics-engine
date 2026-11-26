@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 CREATE INDEX IF NOT EXISTS idx_txn_account_time ON transactions (account_id, booked_at);
 CREATE INDEX IF NOT EXISTS idx_txn_date ON transactions (date);
+CREATE TABLE IF NOT EXISTS account_metadata (
+    account_id   TEXT PRIMARY KEY,
+    display_name TEXT,
+    currency     TEXT,
+    last4        TEXT
+);
 """
 
 
@@ -101,6 +107,28 @@ def upsert_transaction(
             mcc,
             int(is_pending),
         ),
+    )
+
+
+def upsert_account_metadata(
+    conn: sqlite3.Connection,
+    account_id: str,
+    *,
+    display_name: str | None = None,
+    currency: str | None = None,
+    last4: str | None = None,
+) -> None:
+    """Store privacy-safe display metadata for an account."""
+    conn.execute(
+        """
+        INSERT INTO account_metadata (account_id, display_name, currency, last4)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(account_id) DO UPDATE SET
+            display_name = COALESCE(excluded.display_name, account_metadata.display_name),
+            currency = COALESCE(excluded.currency, account_metadata.currency),
+            last4 = COALESCE(excluded.last4, account_metadata.last4)
+        """,
+        (account_id, display_name, currency, last4),
     )
 
 

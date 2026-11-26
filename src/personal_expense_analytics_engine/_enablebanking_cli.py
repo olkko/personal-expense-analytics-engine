@@ -194,7 +194,11 @@ def _wait_for_authorization_code(
                 message (str): Safe message to show in the browser.
             """
             body = (
-                "<!doctype html><html><body><p>" + message + "</p></body></html>"
+                "<!doctype html><html><head><meta charset='utf-8'></head><body><p>"
+                + message
+                + "</p><script>window.opener = window; window.open('', '_self'); "
+                "window.close();</script>"
+                "</body></html>"
             ).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -323,10 +327,66 @@ def _storage_account_id(account: dict[str, Any]) -> str:
     Returns:
         str: Identifier used for the account in the local database.
     """
-    stable = account.get("identification_hash")
+    info = account.get("info")
+    info = info if isinstance(info, dict) else {}
+    stable = account.get("identification_hash") or info.get("identification_hash")
     if isinstance(stable, str) and stable.strip():
         return stable.strip()
     return account["uid"]
+
+
+def _account_display_label(account: dict[str, Any], index: int) -> str:
+    """Return a readable, privacy-conscious label for an account selector."""
+    info = account.get("info")
+    info = info if isinstance(info, dict) else {}
+    name = (
+        info.get("name")
+        or account.get("name")
+        or info.get("details")
+        or account.get("details")
+    )
+    currency = info.get("currency") or account.get("currency") or "unknown currency"
+    identifiers = info.get("all_account_ids") or account.get("all_account_ids")
+    account_number = info.get("account_id") or account.get("account_id")
+    suffix = ""
+    if isinstance(identifiers, list):
+        for item in identifiers:
+            if isinstance(item, dict) and item.get("scheme_name") == "IBAN":
+                value = item.get("identification")
+                if isinstance(value, str) and value:
+                    suffix = f" · IBAN ••••{value[-4:]}"
+                break
+    if not suffix and isinstance(account_number, dict):
+        iban = account_number.get("iban")
+        if isinstance(iban, str) and iban:
+            suffix = f" · IBAN ••••{iban[-4:]}"
+    readable_name = str(name).strip() if name else f"Account {index}"
+    return f"{index}: {readable_name} · {currency}{suffix}"
+
+
+def _account_metadata(account: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
+    """Extract display name, currency, and masked-account suffix."""
+    info = account.get("info")
+    info = info if isinstance(info, dict) else {}
+    name = info.get("name") or account.get("name") or info.get("details") or account.get("details")
+    currency = info.get("currency") or account.get("currency")
+    identifiers = info.get("all_account_ids") or account.get("all_account_ids")
+    values = [
+        item.get("identification")
+        for item in identifiers
+        if isinstance(item, dict) and item.get("scheme_name") == "IBAN"
+        and isinstance(item.get("identification"), str)
+    ] if isinstance(identifiers, list) else []
+    account_number = info.get("account_id") or account.get("account_id")
+    if not values and isinstance(account_number, dict):
+        iban = account_number.get("iban")
+        if isinstance(iban, str) and iban:
+            values.append(iban)
+    return (
+        str(name).strip() if isinstance(name, str) and name.strip() else None,
+        str(currency).strip() if isinstance(currency, str) and currency.strip() else None,
+        values[0][-4:] if values else None,
+    )
 
 
 def _select_account(accounts: list[Any]) -> dict[str, Any]:

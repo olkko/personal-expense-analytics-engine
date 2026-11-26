@@ -7,6 +7,7 @@ a time because amounts in different currencies are never added together.
 """
 
 import sqlite3
+from dataclasses import dataclass
 from datetime import date
 
 import pandas as pd
@@ -24,6 +25,17 @@ from personal_expense_analytics_engine._storage import load_transactions, set_ca
 
 OTHER_CATEGORY = "Other"
 MAX_CATEGORY_SERIES = 7  # the 8th colour slot is reserved for "Other"
+
+
+@dataclass(frozen=True)
+class DashboardData:
+    """Everything the page shows for one database, account and currency."""
+
+    monthly: pd.DataFrame
+    categories: pd.DataFrame
+    transactions: pd.DataFrame
+    recurring: pd.DataFrame
+    unusual: pd.DataFrame
 
 # Approximate occurrences per month, used to compare recurring costs.
 _PER_MONTH = {"weekly": 52 / 12, "biweekly": 26 / 12, "monthly": 1.0, "yearly": 1 / 12}
@@ -76,6 +88,22 @@ def accounts(conn: sqlite3.Connection) -> list[str]:
         "SELECT DISTINCT account_id FROM transactions ORDER BY account_id"
     ).fetchall()
     return [row[0] for row in rows]
+
+
+def account_labels(conn: sqlite3.Connection) -> dict[str, str]:
+    """Return privacy-safe labels for accounts that have stored metadata."""
+    rows = conn.execute(
+        "SELECT account_id, display_name, currency, last4 FROM account_metadata"
+    ).fetchall()
+    labels: dict[str, str] = {}
+    for account_id, name, currency, last4 in rows:
+        parts = [str(name).strip() if name else "Account"]
+        if currency:
+            parts.append(str(currency))
+        if last4:
+            parts.append(f"••••{last4}")
+        labels[account_id] = " · ".join(parts)
+    return labels
 
 
 def monthly_frame(

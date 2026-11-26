@@ -9,6 +9,8 @@ sends only computed summary facts to the local Ollama service.
 """
 
 import os
+import queue
+import threading
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import date
@@ -28,6 +30,8 @@ from personal_expense_analytics_engine._analyst import (
 from personal_expense_analytics_engine._categorization import CATEGORY_NAMES
 from personal_expense_analytics_engine._dashboard_data import (
     OTHER_CATEGORY,
+    DashboardData,
+    account_labels,
     accounts,
     category_changes,
     category_frame,
@@ -40,14 +44,28 @@ from personal_expense_analytics_engine._dashboard_data import (
     transactions_frame,
     unusual_frame,
 )
+from personal_expense_analytics_engine._enablebanking import EnableBankingClient
+from personal_expense_analytics_engine._enablebanking_cli import (
+    _account_display_label,
+    _account_metadata,
+    _storage_account_id,
+    authorize_bank,
+)
 from personal_expense_analytics_engine._ollama import (
     DEFAULT_MODEL,
     OllamaAnalystError,
 )
-from personal_expense_analytics_engine._storage import connect
+from personal_expense_analytics_engine._processing import categorize_stored
+from personal_expense_analytics_engine._storage import (
+    connect,
+    load_transactions,
+    upsert_account_metadata,
+)
+from personal_expense_analytics_engine._sync import sync_account_range
 
 DEFAULT_DATABASE = os.environ.get("EXPENSES_DB", "data/expenses.db")
 ALL_ACCOUNTS = "All accounts"
+COUNTRIES = ("PL", "UA", "DE", "CZ", "SK", "RO", "LT", "LV", "EE")
 
 
 @dataclass(frozen=True)
@@ -97,17 +115,6 @@ DARK = Palette(
 
 
 # ---------------------------------------------------------------- data loading
-
-
-@dataclass(frozen=True)
-class DashboardData:
-    """Everything the page shows for one database, account and currency."""
-
-    monthly: pd.DataFrame
-    categories: pd.DataFrame
-    transactions: pd.DataFrame
-    recurring: pd.DataFrame
-    unusual: pd.DataFrame
 
 
 @st.cache_data(show_spinner=False)
@@ -306,7 +313,7 @@ def _kpis(data: DashboardData, month: str, previous: str | None, currency: str) 
 
     cols = st.columns(4)
 
-    with cols[0].container(border=True):
+    with cols[0].container(border=True, height=150):
         st.metric(
             f"Spent ({currency}) | {spent_count} transaction{'s' if spent_count != 1 else ''}",
             f"{row['spent']:,.2f}",
@@ -314,19 +321,20 @@ def _kpis(data: DashboardData, month: str, previous: str | None, currency: str) 
             delta_color="inverse",
         )
 
-    with cols[1].container(border=True):
+    with cols[1].container(border=True, height=150):
         st.metric(
         f"Income ({currency}) | {income_count} transaction{'s' if income_count != 1 else ''}",
         f"{row['income']:,.2f}", delta("income")
         )
 
-    cols[2].metric(
-        f"Net flow ({currency})", f"{row['net']:,.2f}", delta("net"), border=True
-    )
-    cols[3].metric(
+    with cols[2].container(border=True, height=150):
+        st.metric(
+        f"Net flow ({currency})", f"{row['net']:,.2f}", delta("net")
+        )
+    with cols[3].container(border=True, height=150):
+        st.metric(
         f"Recurring ≈ per month ({currency})",
         f"{recurring_total:,.2f}",
-        border=True,
         help=(
             f"{len(data.recurring)} detected recurring payments; each typical "
             "amount scaled to one month."
@@ -334,16 +342,19 @@ def _kpis(data: DashboardData, month: str, previous: str | None, currency: str) 
     )
 
 
-def _overview_tab(data: DashboardData, currency: str, palette: Palette) -> None:
+def _overview_tab(
+    data: DashboardData, currency: str, palette: Palette, selected_month: str
+) -> None:
     st.subheader("Spending and income by month")
     st.plotly_chart(
         _monthly_chart(data.monthly, currency, palette),
         width="stretch",
         config={"displayModeBar": False},
     )
-    if bool(data.monthly["partial"].to_numpy().any()):
+    partial = dict(zip(data.monthly["month"], data.monthly["partial"]))
+    if bool(partial.get(selected_month, False)):
         st.caption(
-            "\\* Incomplete month (data starts mid-month or the month is not over), "
+            "* Incomplete month (data starts mid-month or the month is not over), "
             "shown lighter. Don't read its drop as a real change."
         )
     with st.expander("Monthly table"):
@@ -726,30 +737,175 @@ def _money_columns(currency: str, *names: str) -> dict[str, Any]:
     }
 
 
+def _run_authorization(
+    result_queue: queue.Queue[tuple[str, Any]],
+    bank: str,
+    country: str,
+    timeout_seconds: int,
+) -> None:
+    """Run the blocking browser callback flow outside Streamlit's main thread."""
+    try:
+        client = EnableBankingClient.from_environment()
+        session = authorize_bank(
+            client,
+            bank,
+            country,
+            timeout_seconds=timeout_seconds,
+        )
+    except Exception as exc:  # noqa: BLE001 - surface the flow error in the page
+        result_queue.put(("error", str(exc)))
+    else:
+        result_queue.put(("success", session))
+
+
+@st.fragment(run_every="2s")
+def _poll_authorization(flow_key: str) -> None:
+    """Poll the background authorization without requiring a manual refresh."""
+    flow = st.session_state.get(flow_key)
+    if flow is None or flow["thread"].is_alive() or "result" in flow:
+        return
+    try:
+        flow["result"] = flow["queue"].get_nowait()
+    except queue.Empty:
+        return
+    st.rerun()
+
+
+def _authorization_tab(database: str) -> None:
+    """Render browser authorization and transaction import controls."""
+    st.subheader("Authorize a bank account")
+    st.caption(
+        "Choose the bank and date range, then complete consent in the browser. "
+        "The callback is verified with a one-time state value before the session "
+        "is exchanged and used."
+    )
+    
+    bank = st.text_input("Bank / ASPSP name", value="Mock ASPSP")
+    country = st.selectbox("Country", COUNTRIES, index=0)
+    dates = st.date_input(
+        "Transactions to import",
+        value=(date.today().replace(day=1), date.today()),
+    )
+    if not isinstance(dates, (tuple, list)) or len(dates) != 2:
+        st.info("Select both a start and end date.")
+        return
+    date_from, date_to = dates
+    if date_from > date_to:
+        st.error("The start date must not be after the end date.")
+        return
+
+    flow_key = "bank-authorization-flow"
+    flow = st.session_state.get(flow_key)
+    _poll_authorization(flow_key)
+    if flow is not None and flow["thread"].is_alive():
+        st.info("Authorization is waiting for the browser callback.")
+        return
+
+    if flow is None and st.button("Authorize and open bank", type="primary"):
+        result_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
+        thread = threading.Thread(
+            target=_run_authorization,
+            args=(result_queue, bank.strip(), country, 300),
+            daemon=True,
+        )
+        st.session_state[flow_key] = {"queue": result_queue, "thread": thread}
+        thread.start()
+        st.info("The authorization page is opening in your browser.")
+        st.rerun()
+        return
+
+    if flow is not None and "result" not in flow:
+        try:
+            flow["result"] = flow["queue"].get_nowait()
+        except queue.Empty:
+            st.warning("Authorization did not finish successfully. Try again.")
+            if st.button("Start again"):
+                del st.session_state[flow_key]
+                st.rerun()
+            return
+
+    if flow is not None and flow.get("result"):
+        status, payload = flow["result"]
+        if status == "error":
+            st.error(payload)
+            if st.button("Retry authorization"):
+                del st.session_state[flow_key]
+                st.rerun()
+            return
+        session = payload
+        accounts = session.get("accounts", [])
+        if not accounts:
+            st.error("The authorized session contains no accounts.")
+            return
+        labels = [
+            _account_display_label(account, index)
+            for index, account in enumerate(accounts, start=1)
+        ]
+        selected = st.selectbox("Account to import", labels)
+        account = accounts[labels.index(selected)]
+        st.write("Select **Import transactions** to save this account to the database.")
+        if st.button("Import transactions", type="primary"):
+            try:
+                account_id = _storage_account_id(account)
+                with closing(connect(database)) as conn:
+                    name, currency, last4 = _account_metadata(account)
+                    upsert_account_metadata(
+                        conn,
+                        account_id,
+                        display_name=name,
+                        currency=currency,
+                        last4=last4,
+                    )
+                    fetched = sync_account_range(
+                        conn,
+                        EnableBankingClient.from_environment(),
+                        account_id,
+                        date_from,
+                        date_to,
+                        provider_account_id=account["uid"],
+                    )
+                    category_counts = categorize_stored(conn)
+                    stored = len(load_transactions(conn, account_id))
+            except Exception as exc:  # noqa: BLE001 - show import failure in UI
+                st.error(str(exc))
+            else:
+                st.cache_data.clear()
+                del st.session_state[flow_key]
+                categorized = sum(
+                    count
+                    for category, count in category_counts.items()
+                    if category != "Uncategorized"
+                )
+                st.success(
+                    f"Fetched {fetched} transaction(s); {stored} stored; "
+                    f"categorized {categorized}."
+                )
+                st.rerun()
+
+
 # ---------------------------------------------------------------- page
 
 
 def main() -> None:
     """Render the dashboard page."""
-    st.set_page_config(page_title="Expense analytics", page_icon="📊", layout="wide")
+    st.set_page_config(page_title="Expense analytics", page_icon="", layout="wide")
 
     with st.sidebar:
         st.header("Data")
         database = st.text_input("SQLite database", DEFAULT_DATABASE)
-        path = Path(database)
-        if not path.is_file():
-            st.error(f"Database not found: `{database}`")
-            st.info(
-                "Import transactions first with `just authorize …`, or point to "
-                "another file."
-            )
-            st.stop()
+    path = Path(database)
+    if not path.is_file():
+        st.info("No database exists yet. Open the Import page to authorize an account.")
+        return
+    with st.sidebar:
         mtime = path.stat().st_mtime
         account_ids, scopes = _load_scope(database, mtime)
+        with closing(connect(database)) as conn:
+            labels = account_labels(conn)
         account = st.selectbox(
             "Account",
             [ALL_ACCOUNTS, *account_ids],
-            disabled=len(account_ids) < 2,
+            format_func=lambda value: labels.get(value, value),
         )
         account_id = None if account == ALL_ACCOUNTS else account
         available = scopes.get(account, [])
@@ -768,8 +924,8 @@ def main() -> None:
     today = date.today()
     data = _load_data(database, mtime, currency, account_id, today)
     if data.monthly.empty:
-        st.info(f"No {currency} transactions stored.")
-        st.stop()
+        st.info(f"No {currency} transactions stored yet. Open the Import page to add data.")
+        return
 
     months = list(data.monthly["month"])
     partial = dict(zip(data.monthly["month"], data.monthly["partial"]))
@@ -792,7 +948,11 @@ def main() -> None:
         )
 
     previous_month = _previous_month(month)
-    previous = previous_month if previous_month in partial else None
+    previous = (
+        previous_month
+        if previous_month in set(data.monthly["month"].astype(str))
+        else None
+    )
 
     st.title("Expense analytics")
     if partial[month]:
@@ -804,10 +964,17 @@ def main() -> None:
 
     palette = _palette()
     tabs = st.tabs(
-        ["Overview", "Categories", "Recurring", "Unusual", "Transactions", "AI insight"]
+        [
+            "Overview",
+            "Categories",
+            "Recurring",
+            "Unusual",
+            "Transactions",
+            "AI insight",
+        ]
     )
     with tabs[0]:
-        _overview_tab(data, currency, palette)
+        _overview_tab(data, currency, palette, month)
     with tabs[1]:
         _categories_tab(data, month, previous, currency, palette)
     with tabs[2]:
@@ -820,4 +987,5 @@ def main() -> None:
         _insight_tab(database, month, currency, account_id)
 
 
-main()
+if __name__ == "__main__":
+    main()
