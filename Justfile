@@ -41,3 +41,6 @@ categorize:
 
 test-file FILE:
     {{python}} -X pycache_prefix=.artifact/pycache -m pytest "{{FILE}}"
+
+bandit:
+    bandit -r src tests -f screen

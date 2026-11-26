@@ -24,6 +24,9 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 cache_dir = ".artifact/pytest"
 
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"
